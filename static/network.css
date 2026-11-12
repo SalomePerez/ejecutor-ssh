@@ -251,3 +251,7 @@ a.net-fn:hover { color: var(--teal); }
 .net-conn-out { flex-basis: 100%; margin: 0; padding: .6rem .8rem; border-radius: 8px; white-space: pre-wrap; font-size: .82rem; max-height: 22rem; overflow: auto; border-left: 4px solid #888; background: rgba(127,127,127,.08); }
 .net-conn-out.ok { border-left-color: #2e9d5b; }
 .net-conn-out.bad { border-left-color: #d0453a; }
+
+.net-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; }
+.net-channel { display: inline-flex; align-items: center; gap: .4rem; font-size: .85rem; }
+.net-channel select { max-width: 100%; }

@@ -19,7 +19,13 @@ type NetState struct {
 	Family  string `json:"family"`
 	Manager string `json:"manager"`
 	// Hypervisor es quien da las redes de las tarjetas: "libvirt" (vacio) o "VirtualBox".
-	Hypervisor  string                 `json:"hypervisor,omitempty"`
+	Hypervisor string `json:"hypervisor,omitempty"`
+	// Channel es por donde se leyo la VM (Guest Additions, agente QEMU o SSH
+	// por la interfaz de gestion).
+	Channel string `json:"channel,omitempty"`
+	// Management es la MAC de la interfaz de gestion cuando se usa ese
+	// canal: el plan no permite modificarla (cortaria el canal).
+	Management  string                 `json:"management,omitempty"`
 	ManagerName string                 `json:"managerName"`
 	Forwarding  bool                   `json:"forwarding"`
 	CloudInit   bool                   `json:"cloudInit"`
@@ -147,6 +153,10 @@ func readNetwork(p netBackend, name string) (*NetState, error) {
 	state.ReadAt = time.Now()
 	state.Libvirt = p.hostNetworks(name)
 	state.Hypervisor = p.hypervisorName()
+	state.Channel = "agente QEMU (qemu-guest-agent)"
+	if state.Hypervisor == "VirtualBox" {
+		state.Channel = "Guest Additions de VirtualBox"
+	}
 	return state, nil
 }
 

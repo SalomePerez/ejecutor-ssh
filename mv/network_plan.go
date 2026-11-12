@@ -148,6 +148,9 @@ func PlanNetwork(st *NetState, req NetRequest, revertSeconds int) *NetPlan {
 			defElse++
 		}
 	}
+	if st.Management != "" && strings.EqualFold(st.Management, i.MAC) {
+		add("bad", i.Name+" es la interfaz de gestión: por ella está conectada la app ("+st.Channel+"). Cambiarla cortaría el canal. Configure las interfaces de datos o use el canal de Guest Additions.")
+	}
 	ln := st.Libvirt[strings.ToLower(i.MAC)]
 	changed := true
 	var cfg *IfaceConfig

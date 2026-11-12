@@ -46,6 +46,7 @@ func main() {
 			SeedsDir:     cfg.VBoxSeedsDir,
 			SeedURL:      cfg.VBoxSeedURL,
 			AdditionsISO: cfg.VBoxAdditionsISO,
+			KeysDir:      cfg.KeysStorePath,
 		})
 		// cloud-init de las VMs nuevas pide aqui su configuracion.
 		http.Handle("/cloud-init/", handlers.CloudInitHandler{Source: vbox})

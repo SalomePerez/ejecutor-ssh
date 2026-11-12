@@ -20,3 +20,6 @@ presentacion - copia/
 
 # Archivos de cloud-init que la app sirve a las VMs nuevas
 seeds/
+
+# Llaves de host de las VMs (canal de gestion, TOFU)
+known_hosts_vms

@@ -59,9 +59,18 @@ func (p *LibvirtProvider) ApplyNetwork(name string, req NetRequest, revertSecond
 
 // applyNetwork es comun a todos los proveedores (ver netBackend).
 func applyNetwork(p netBackend, name string, req NetRequest, revertSeconds int) (*ApplyResult, error) {
+	return applyNetworkWith(p, name, req, revertSeconds, nil)
+}
+
+// applyNetworkWith permite al canal completar cada lectura (por ejemplo, el
+// canal de gestion marca su interfaz para que el plan no la toque).
+func applyNetworkWith(p netBackend, name string, req NetRequest, revertSeconds int, mark func(*NetState)) (*ApplyResult, error) {
 	st, err := readNetwork(p, name)
 	if err != nil {
 		return nil, err
+	}
+	if mark != nil {
+		mark(st)
 	}
 	plan := PlanNetwork(st, req, revertSeconds)
 	if !plan.Valid {
@@ -133,6 +142,9 @@ func applyNetwork(p netBackend, name string, req NetRequest, revertSeconds int) 
 	}
 
 	if fresh, err := readNetwork(p, name); err == nil {
+		if mark != nil {
+			mark(fresh)
+		}
 		result.State = fresh
 	}
 	return result, nil

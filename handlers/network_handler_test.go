@@ -31,6 +31,14 @@ func (f *fakeNetProvider) ApplyNetwork(name string, req vm.NetRequest, revertSec
 	return &vm.ApplyResult{OK: true, Message: "Aplicado y verificado."}, nil
 }
 
+func (f *fakeNetProvider) SetForwarding(name string, enabled bool) (*vm.ApplyResult, error) {
+	return &vm.ApplyResult{OK: true}, nil
+}
+
+func (f *fakeNetProvider) TestConnectivity(name, target string) (*vm.ApplyResult, error) {
+	return &vm.ApplyResult{OK: true}, nil
+}
+
 func newNetHandler() (*VMHandler, *fakeNetProvider) {
 	p := &fakeNetProvider{state: &vm.NetState{Manager: "netplan", Interfaces: []vm.NetIface{
 		{Name: "enp1s0", MAC: "52:54:00:07:00:11", Type: "eth", IP: "192.168.122.45", Prefix: 24, Mode: "dhcp", Role: "main", Gateway: "192.168.122.1", Metric: 100, DNS: "192.168.122.1", Extras: []string{}, Nets: []string{}},

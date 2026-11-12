@@ -207,6 +207,12 @@
           <section class="net-panel" id="net-panel" aria-labelledby="net-title">
             <div class="net-head">
               <h2 id="net-title">Red</h2>
+              <label class="net-channel">Canal
+                <select id="net-channel" title="Por dónde entra la app a la VM para leer y cambiar su red">
+                  <option value="">2 · Hipervisor (Guest Additions)</option>
+                  <option value="gestion">3 · SSH por la interfaz de gestión</option>
+                </select>
+              </label>
             </div>
             <div id="net-loading" class="net-loading">Escoja una máquina virtual encendida en la lista de la izquierda.</div>
             <div id="net-body" hidden>

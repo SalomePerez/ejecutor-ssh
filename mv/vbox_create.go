@@ -35,6 +35,7 @@ type VBoxOptions struct {
 	SeedsDir     string // user-data y meta-data que sirve la app
 	SeedURL      string // como ve la VM a la app, ej. http://10.0.2.2:8081
 	AdditionsISO string // VBoxGuestAdditions.iso
+	KeysDir      string // llaves SSH de las VMs (<vm>-ssh), para el canal de gestion
 }
 
 func (p *VBoxProvider) SetOptions(o VBoxOptions) { p.opts = o }

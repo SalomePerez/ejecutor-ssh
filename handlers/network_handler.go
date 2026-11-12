@@ -64,11 +64,15 @@ func (h *VMHandler) serveNetwork(w http.ResponseWriter, r *http.Request, name, a
 		writeVMResponse(w, http.StatusBadRequest, vmResponse{Success: false, Error: err.Error()})
 		return
 	}
-	np, ok := h.provider.(vm.NetworkProvider)
-	if !ok {
-		writeVMResponse(w, http.StatusNotImplemented, vmResponse{Success: false, Error: "el proveedor de VMs no permite gestionar la red"})
+	// canal=gestion usa SSH por la interfaz de gestion (canal 3); si no, el
+	// canal del hipervisor (Guest Additions o agente QEMU, canal 2).
+	channel := r.URL.Query().Get("canal")
+	np, err := h.networkOps(channel)
+	if err != nil {
+		writeVMResponse(w, http.StatusNotImplemented, vmResponse{Success: false, Error: err.Error()})
 		return
 	}
+	cacheKey := name + "|" + channel
 	switch {
 	case action == "" && r.Method == http.MethodGet:
 		st, err := np.ReadNetwork(name)
@@ -76,7 +80,7 @@ func (h *VMHandler) serveNetwork(w http.ResponseWriter, r *http.Request, name, a
 			writeVMResponse(w, http.StatusBadGateway, vmResponse{Success: false, Error: err.Error()})
 			return
 		}
-		h.net.put(name, st)
+		h.net.put(cacheKey, st)
 		writeVMResponse(w, http.StatusOK, vmResponse{Success: true, Data: networkReadResponse{State: st, RevertSeconds: h.config.VMNetRevertSeconds}})
 
 	case action == "/plan" && r.Method == http.MethodPost:
@@ -84,7 +88,7 @@ func (h *VMHandler) serveNetwork(w http.ResponseWriter, r *http.Request, name, a
 		if !ok {
 			return
 		}
-		st := h.net.get(name)
+		st := h.net.get(cacheKey)
 		if st == nil {
 			writeVMResponse(w, http.StatusConflict, vmResponse{Success: false, Error: "la lectura de la red venció: vuelva a abrir el panel de red"})
 			return
@@ -107,16 +111,11 @@ func (h *VMHandler) serveNetwork(w http.ResponseWriter, r *http.Request, name, a
 			return
 		}
 		if result.State != nil {
-			h.net.put(name, result.State)
+			h.net.put(cacheKey, result.State)
 		}
 		writeVMResponse(w, http.StatusOK, vmResponse{Success: result.OK, Message: result.Message, Data: result})
 
 	case action == "/test" && r.Method == http.MethodPost:
-		cp, ok := h.provider.(vm.ConnectivityProvider)
-		if !ok {
-			writeVMResponse(w, http.StatusNotImplemented, vmResponse{Success: false, Error: "el proveedor no permite probar la conectividad"})
-			return
-		}
 		var req struct {
 			Target string `json:"target"`
 		}
@@ -125,7 +124,7 @@ func (h *VMHandler) serveNetwork(w http.ResponseWriter, r *http.Request, name, a
 			writeVMResponse(w, http.StatusBadRequest, vmResponse{Success: false, Error: "JSON inválido"})
 			return
 		}
-		result, err := cp.TestConnectivity(name, req.Target)
+		result, err := np.TestConnectivity(name, req.Target)
 		if err != nil {
 			writeVMResponse(w, http.StatusBadRequest, vmResponse{Success: false, Error: err.Error()})
 			return
@@ -133,11 +132,6 @@ func (h *VMHandler) serveNetwork(w http.ResponseWriter, r *http.Request, name, a
 		writeVMResponse(w, http.StatusOK, vmResponse{Success: result.OK, Message: result.Message, Data: result})
 
 	case action == "/forwarding" && r.Method == http.MethodPost:
-		fp, ok := h.provider.(vm.ForwardingProvider)
-		if !ok {
-			writeVMResponse(w, http.StatusNotImplemented, vmResponse{Success: false, Error: "el proveedor no permite cambiar el reenvío IPv4"})
-			return
-		}
 		var req struct {
 			Enabled bool `json:"enabled"`
 		}
@@ -146,13 +140,13 @@ func (h *VMHandler) serveNetwork(w http.ResponseWriter, r *http.Request, name, a
 			writeVMResponse(w, http.StatusBadRequest, vmResponse{Success: false, Error: "JSON inválido"})
 			return
 		}
-		result, err := fp.SetForwarding(name, req.Enabled)
+		result, err := np.SetForwarding(name, req.Enabled)
 		if err != nil {
 			writeVMResponse(w, http.StatusBadGateway, vmResponse{Success: false, Error: err.Error()})
 			return
 		}
 		if result.State != nil {
-			h.net.put(name, result.State)
+			h.net.put(cacheKey, result.State)
 		}
 		writeVMResponse(w, http.StatusOK, vmResponse{Success: result.OK, Message: result.Message, Data: result})
 
@@ -169,4 +163,25 @@ func decodeNetRequest(w http.ResponseWriter, r *http.Request) (vm.NetRequest, bo
 		return req, false
 	}
 	return req, true
+}
+
+// managementProvider lo implementan los proveedores con canal de gestion.
+type managementProvider interface {
+	Management() vm.NetworkOps
+}
+
+// networkOps elige el canal con el que se lee y configura la red.
+func (h *VMHandler) networkOps(channel string) (vm.NetworkOps, error) {
+	if channel == "gestion" {
+		mp, ok := h.provider.(managementProvider)
+		if !ok {
+			return nil, errors.New("el proveedor no tiene canal por interfaz de gestión")
+		}
+		return mp.Management(), nil
+	}
+	ops, ok := h.provider.(vm.NetworkOps)
+	if !ok {
+		return nil, errors.New("el proveedor de VMs no permite gestionar la red")
+	}
+	return ops, nil
 }

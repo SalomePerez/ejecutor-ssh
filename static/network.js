@@ -60,7 +60,7 @@
     other: { name: 'esta distribución', refs: [['maniproute', 'ip-route(8)'], ['manipaddr', 'ip-address(8)']] }
   };
 
-  const S = { vm: null, state: null, revert: 120, iface: null, mode: 'static', f: {}, tab: 'file', lf: 'ip', plan: null, busy: false, seq: 0, timer: null };
+  const S = { channel: '', vm: null, state: null, revert: 120, iface: null, mode: 'static', f: {}, tab: 'file', lf: 'ip', plan: null, busy: false, seq: 0, timer: null };
   const $ = sel => document.querySelector(sel);
   const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const isDef = r => r === 'main' || r === 'backup';
@@ -158,7 +158,7 @@
   function renderHead() {
     const st = S.state;
     $('#net-title').textContent = 'Red de ' + S.vm;
-    const channel = st.hypervisor === 'VirtualBox' ? 'las Guest Additions de VirtualBox' : 'el agente QEMU';
+    const channel = st.channel || (st.hypervisor === 'VirtualBox' ? 'Guest Additions de VirtualBox' : 'agente QEMU');
     $('#net-detect').innerHTML = 'Detectado por ' + channel + ': ' +
       `<span class="net-chip">${esc(st.os || 'sistema desconocido')}</span><span class="net-chip">${esc(st.managerName || 'gestor no reconocido')}</span>` +
       (st.forwarding ? '<span class="net-chip warm">reenvío IPv4 activo (router)</span>' : '<span class="net-chip dim">sin reenvío IPv4</span>') +
@@ -266,7 +266,7 @@
     S.timer = setTimeout(async () => {
       const seq = ++S.seq;
       try {
-        const r = await fetch('/api/vms/' + encodeURIComponent(S.vm) + '/network/plan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request()) });
+        const r = await fetch('/api/vms/' + encodeURIComponent(S.vm) + '/network/plan' + qs(), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request()) });
         const data = await r.json();
         if (seq !== S.seq) return;
         if (!data.success) { S.plan = { checks: [{ level: 'bad', text: data.error || 'No se pudo validar' }], valid: false }; }
@@ -314,7 +314,7 @@
     btn.textContent = enabled ? 'Activando…' : 'Desactivando…';
     let data;
     try {
-      const r = await fetch('/api/vms/' + encodeURIComponent(S.vm) + '/network/forwarding', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }) });
+      const r = await fetch('/api/vms/' + encodeURIComponent(S.vm) + '/network/forwarding' + qs(), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }) });
       data = await r.json();
     } catch (err) {
       data = { success: false, error: err.message };
@@ -337,7 +337,7 @@
     out.textContent = 'Probando ' + target + ' desde ' + S.vm + '…';
     let data;
     try {
-      const r = await fetch('/api/vms/' + encodeURIComponent(S.vm) + '/network/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target }) });
+      const r = await fetch('/api/vms/' + encodeURIComponent(S.vm) + '/network/test' + qs(), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target }) });
       data = await r.json();
     } catch (err) {
       data = { success: false, error: err.message };
@@ -358,7 +358,7 @@
     $('#net-result').innerHTML = '';
     renderIfaces(); renderMode(); renderChecks();
     try {
-      const r = await fetch('/api/vms/' + encodeURIComponent(S.vm) + '/network/apply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request()) });
+      const r = await fetch('/api/vms/' + encodeURIComponent(S.vm) + '/network/apply' + qs(), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request()) });
       const data = await r.json();
       const res = data.data && data.data.steps ? data.data : null;
       if (!res) {
@@ -420,7 +420,12 @@
   // cada 15 s durante unos minutos en vez de dejar un error.
   const WAIT = { timer: null, tick: null, since: 0, tries: 0, max: 24 };
   function stopWaiting() { clearTimeout(WAIT.timer); clearInterval(WAIT.tick); WAIT.timer = WAIT.tick = null; }
-  const agentDown = msg => /guest agent|agente QEMU/i.test(msg || '');
+  const agentDown = msg => /guest agent|agente QEMU|Guest Additions/i.test(msg || '');
+  // Canal con el que se lee y configura la red: '' = hipervisor (Guest
+  // Additions / agente QEMU), 'gestion' = SSH por la interfaz de gestión.
+  function qs() { return S.channel ? '?canal=' + S.channel : ''; }
+  const chSel = document.getElementById('net-channel');
+  if (chSel) chSel.addEventListener('change', () => { S.channel = chSel.value; if (S.vm) open(S.vm); });
 
   async function open(name, { retry = false } = {}) {
     if (S.busy) return;
@@ -435,13 +440,13 @@
       $('#net-body').hidden = true;
       $('#net-run').hidden = true;
       $('#net-loading').hidden = false;
-      $('#net-loading').innerHTML = '<div class="net-wait"><span class="spinner"></span> Leyendo la red de la VM por el canal del hipervisor…</div>';
+      $('#net-loading').innerHTML = '<div class="net-wait"><span class="spinner"></span> Leyendo la red de la VM ' + (S.channel ? 'por SSH a su interfaz de gestión' : 'por el canal del hipervisor') + '…</div>';
       $('#net-panel').scrollIntoView({ block: 'start', behavior: 'smooth' });
     }
     if (S.vm !== name) return;
     let error = '';
     try {
-      const r = await fetch('/api/vms/' + encodeURIComponent(name) + '/network');
+      const r = await fetch('/api/vms/' + encodeURIComponent(name) + '/network' + qs());
       const data = await r.json();
       if (!data.success) throw new Error(data.error || 'no se pudo leer la red');
       S.state = data.data.state;
