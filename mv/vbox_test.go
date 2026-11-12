@@ -15,10 +15,16 @@ type fakeVBox struct {
 func (f *fakeVBox) Run(args ...string) ([]byte, error) {
 	f.calls = append(f.calls, args)
 	key := strings.Join(args, " ")
-	for prefix, out := range f.responses {
-		if strings.HasPrefix(key, prefix) {
-			return []byte(out), nil
+	// Gana el prefijo mas largo: el orden de un mapa es aleatorio y una
+	// respuesta generica no debe tapar a una especifica.
+	best, found := "", false
+	for prefix := range f.responses {
+		if strings.HasPrefix(key, prefix) && (!found || len(prefix) > len(best)) {
+			best, found = prefix, true
 		}
+	}
+	if found {
+		return []byte(f.responses[best]), nil
 	}
 	return nil, fmt.Errorf("sin respuesta para %q", key)
 }
