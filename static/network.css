@@ -244,3 +244,10 @@ a.net-fn:hover { color: var(--teal); }
 .net-file pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .net-raw[open] { display: grid; gap: 8px; }
 .net-detect .net-chip, .net-distline a { max-width: 100%; }
+
+/* Probar conectividad (panel de Red) */
+.net-conn { margin: .6rem 0; display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.net-conn input { width: 14rem; max-width: 100%; }
+.net-conn-out { flex-basis: 100%; margin: 0; padding: .6rem .8rem; border-radius: 8px; white-space: pre-wrap; font-size: .82rem; max-height: 22rem; overflow: auto; border-left: 4px solid #888; background: rgba(127,127,127,.08); }
+.net-conn-out.ok { border-left-color: #2e9d5b; }
+.net-conn-out.bad { border-left-color: #d0453a; }

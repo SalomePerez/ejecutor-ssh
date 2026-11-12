@@ -56,6 +56,7 @@ func TestNetworkRoute(t *testing.T) {
 		"/api/vms/lab-01/network/plan":       {"lab-01", "/plan"},
 		"/api/vms/lab-01/network/apply":      {"lab-01", "/apply"},
 		"/api/vms/lab-01/network/forwarding": {"lab-01", "/forwarding"},
+		"/api/vms/lab-01/network/test":       {"lab-01", "/test"},
 	}
 	for path, want := range cases {
 		name, action, ok := networkRoute(path)

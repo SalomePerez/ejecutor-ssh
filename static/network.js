@@ -165,6 +165,17 @@
       (st.cloudInit ? '<span class="net-chip dim">cloud-init</span>' : '') +
       ` <button type="button" class="btn-small" id="net-fwd" title="net.ipv4.ip_forward: la VM pasa paquetes entre sus interfaces">${st.forwarding ? 'Desactivar reenvío' : 'Activar reenvío (router)'}</button>`;
     $('#net-fwd').onclick = toggleForwarding;
+    // Probar conectividad: ping, ip route get y tracepath desde la VM.
+    let conn = $('#net-conn');
+    if (!conn) {
+      conn = document.createElement('form');
+      conn.id = 'net-conn';
+      conn.className = 'net-conn';
+      conn.innerHTML = '<label>Probar conectividad desde la VM: <input id="net-conn-target" placeholder="192.168.20.10" autocomplete="off" spellcheck="false" aria-label="IP o nombre de destino"></label> ' +
+        '<button type="submit" class="btn-small">Probar (ping)</button><pre id="net-conn-out" class="net-conn-out" hidden></pre>';
+      $('#net-detect').after(conn);
+      conn.addEventListener('submit', testConnectivity);
+    }
     $('#net-distline').innerHTML = 'Manual de ' + esc(distro().name) + ': ' + distroRefs();
     $('#net-raw').innerHTML = st.raw.map(c => `<span class="k2">$ ${esc(c.cmd)}</span>\n<span class="o">${esc(c.output)}</span>`).join('\n');
   }
@@ -308,14 +319,33 @@
     } catch (err) {
       data = { success: false, error: err.message };
     }
-    const lines = ((data.data && data.data.steps) || []).flatMap(s => s.lines).map(l => '$ ' + l.cmd + (l.output ? '
-' + l.output : '')).join('
-');
-    if (window.toast) window.toast(data.success ? 'success' : 'error', (data.message || data.error || 'error') + (lines ? '
-
-' + lines : ''), data.success ? 8000 : 0);
+    const lines = ((data.data && data.data.steps) || []).flatMap(s => s.lines).map(l => '$ ' + l.cmd + (l.output ? '\n' + l.output : '')).join('\n');
+    if (window.toast) window.toast(data.success ? 'success' : 'error', (data.message || data.error || 'error') + (lines ? '\n\n' + lines : ''), data.success ? 8000 : 0);
     if (data.data && data.data.state) { S.state = data.data.state; renderAll(); }
     else { btn.disabled = false; renderHead(); }
+  }
+
+  async function testConnectivity(e) {
+    e.preventDefault();
+    const target = $('#net-conn-target').value.trim();
+    const out = $('#net-conn-out');
+    if (!target) return;
+    const btn = e.submitter || $('#net-conn button');
+    btn.disabled = true;
+    out.hidden = false;
+    out.className = 'net-conn-out';
+    out.textContent = 'Probando ' + target + ' desde ' + S.vm + '…';
+    let data;
+    try {
+      const r = await fetch('/api/vms/' + encodeURIComponent(S.vm) + '/network/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target }) });
+      data = await r.json();
+    } catch (err) {
+      data = { success: false, error: err.message };
+    }
+    btn.disabled = false;
+    const lines = ((data.data && data.data.steps) || []).flatMap(s => s.lines).map(l => '$ ' + l.cmd + (l.output ? '\n' + l.output : '')).join('\n\n');
+    out.className = 'net-conn-out ' + (data.success ? 'ok' : 'bad');
+    out.textContent = (data.message || data.error || 'error') + (lines ? '\n\n' + lines : '');
   }
 
   async function apply() {

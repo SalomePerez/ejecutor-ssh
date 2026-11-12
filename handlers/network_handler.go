@@ -45,13 +45,13 @@ type networkReadResponse struct {
 	RevertSeconds int          `json:"revertSeconds"`
 }
 
-// networkRoute reconoce /api/vms/{nombre}/network[/plan|/apply|/forwarding].
+// networkRoute reconoce /api/vms/{nombre}/network[/plan|/apply|/forwarding|/test].
 func networkRoute(path string) (name, action string, ok bool) {
 	rest := strings.TrimPrefix(path, "/api/vms/")
 	if rest == path {
 		return "", "", false
 	}
-	for _, a := range []string{"/network/plan", "/network/apply", "/network/forwarding", "/network"} {
+	for _, a := range []string{"/network/plan", "/network/apply", "/network/forwarding", "/network/test", "/network"} {
 		if strings.HasSuffix(rest, a) {
 			return strings.TrimSuffix(rest, a), strings.TrimPrefix(a, "/network"), true
 		}
@@ -108,6 +108,27 @@ func (h *VMHandler) serveNetwork(w http.ResponseWriter, r *http.Request, name, a
 		}
 		if result.State != nil {
 			h.net.put(name, result.State)
+		}
+		writeVMResponse(w, http.StatusOK, vmResponse{Success: result.OK, Message: result.Message, Data: result})
+
+	case action == "/test" && r.Method == http.MethodPost:
+		cp, ok := h.provider.(vm.ConnectivityProvider)
+		if !ok {
+			writeVMResponse(w, http.StatusNotImplemented, vmResponse{Success: false, Error: "el proveedor no permite probar la conectividad"})
+			return
+		}
+		var req struct {
+			Target string `json:"target"`
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, 512)
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeVMResponse(w, http.StatusBadRequest, vmResponse{Success: false, Error: "JSON inválido"})
+			return
+		}
+		result, err := cp.TestConnectivity(name, req.Target)
+		if err != nil {
+			writeVMResponse(w, http.StatusBadRequest, vmResponse{Success: false, Error: err.Error()})
+			return
 		}
 		writeVMResponse(w, http.StatusOK, vmResponse{Success: result.OK, Message: result.Message, Data: result})
 

@@ -159,3 +159,16 @@ func TestAttachNicNeedsStoppedVMAndUsesFreeSlot(t *testing.T) {
 		t.Fatalf("debe usar la tarjeta 3 (1 y 2 ocupadas): %s", last)
 	}
 }
+
+func TestValidTarget(t *testing.T) {
+	for _, ok := range []string{"192.168.20.10", "debian.org", "lab-ubuntu"} {
+		if !validTarget(ok) {
+			t.Errorf("%q deberia aceptarse", ok)
+		}
+	}
+	for _, bad := range []string{"", "1.2.3.4; rm -rf /", "$(id)", "a b", "::1", "-c 100 x"} {
+		if validTarget(bad) {
+			t.Errorf("%q deberia rechazarse", bad)
+		}
+	}
+}
