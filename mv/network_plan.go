@@ -175,13 +175,13 @@ func PlanNetwork(st *NetState, req NetRequest, revertSeconds int) *NetPlan {
 			add("info", "La interfaz ya está en DHCP: no hay nada que cambiar.")
 			changed = false
 		case ln != nil && ln.DHCPStart == "":
-			add("warn", "La red «"+ln.Network+"» de libvirt no tiene DHCP. La VM podría quedar sin IP en "+i.Name+".")
+			add("warn", "La red «"+ln.Network+"» de "+hvName(st)+" no tiene DHCP. La VM podría quedar sin IP en "+i.Name+".")
 		case ln != nil && ln.Isolated:
-			add("ok", fmt.Sprintf("El DHCP de libvirt (red aislada «%s», rango %s a %s) entregará IP y máscara. No entrega puerta de enlace: por %s solo se llega a esa red.", ln.Network, ln.DHCPStart, ln.DHCPEnd, i.Name))
+			add("ok", fmt.Sprintf("El DHCP de "+hvName(st)+" (red aislada «%s», rango %s a %s) entregará IP y máscara. No entrega puerta de enlace: por %s solo se llega a esa red.", ln.Network, ln.DHCPStart, ln.DHCPEnd, i.Name))
 		case ln != nil:
-			add("ok", fmt.Sprintf("El DHCP de libvirt (red «%s», rango %s a %s) entregará IP, máscara, puerta de enlace y DNS.", ln.Network, ln.DHCPStart, ln.DHCPEnd))
+			add("ok", fmt.Sprintf("El DHCP de "+hvName(st)+" (red «%s», rango %s a %s) entregará IP, máscara, puerta de enlace y DNS.", ln.Network, ln.DHCPStart, ln.DHCPEnd))
 		default:
-			add("warn", i.Name+" no está en una red de libvirt: la app no puede comprobar que en esa red haya un servidor DHCP.")
+			add("warn", i.Name+" no está en una red de "+hvName(st)+": la app no puede comprobar que en esa red haya un servidor DHCP.")
 		}
 		if changed && role == "backup" {
 			add("info", mainElse.Name+" ya tiene la ruta por defecto principal, así que la puerta de enlace que entregue el DHCP se instala con métrica 600 (respaldo).")
@@ -218,7 +218,7 @@ func PlanNetwork(st *NetState, req NetRequest, revertSeconds int) *NetPlan {
 			hn, _ := ipToU32(ln.HostIP)
 			lnet := netOf(hn, ln.Prefix)
 			if lnet != nn || p != ln.Prefix {
-				add("warn", fmt.Sprintf("La tarjeta está conectada a la red «%s» de libvirt (%s/%d). Con %s la VM queda configurada pero sin salida, como pasó con 192.168.10.23.", ln.Network, u32ToIP(lnet), ln.Prefix, netTxt))
+				add("warn", fmt.Sprintf("La tarjeta está conectada a la red «%s» de "+hvName(st)+" (%s/%d). Con %s la VM queda configurada pero sin salida, como pasó con 192.168.10.23.", ln.Network, u32ToIP(lnet), ln.Prefix, netTxt))
 			}
 		} else if cur, ok := ipToU32(i.IP); ok && (netOf(cur, i.Prefix) != nn || p != i.Prefix) {
 			add("warn", fmt.Sprintf("La tarjeta está hoy en %s/%d. Con %s la VM queda configurada pero sin salida si la red física es la de antes.", u32ToIP(netOf(cur, i.Prefix)), i.Prefix, netTxt))
@@ -249,9 +249,9 @@ func PlanNetwork(st *NetState, req NetRequest, revertSeconds int) *NetPlan {
 			if who := occupiedBy(st, ln, ip, i.MAC); who != "" {
 				add("bad", ip+" ya está en uso: "+who+". Escoja otra libre.")
 			} else if st.HasArping {
-				add("ok", "Ninguna VM de libvirt tiene "+ip+". Al aplicar, la app lo confirma con arping desde la VM.")
+				add("ok", "Ninguna VM de "+hvName(st)+" tiene "+ip+". Al aplicar, la app lo confirma con arping desde la VM.")
 			} else {
-				add("ok", "Ninguna VM de libvirt tiene "+ip+". (arping no está instalado en la VM: no se puede confirmar en el cable.)")
+				add("ok", "Ninguna VM de "+hvName(st)+" tiene "+ip+". (arping no está instalado en la VM: no se puede confirmar en el cable.)")
 			}
 		}
 
@@ -297,7 +297,7 @@ func PlanNetwork(st *NetState, req NetRequest, revertSeconds int) *NetPlan {
 				add("bad", "La puerta de enlace no puede ser la misma IP de la VM.")
 			}
 			if ln != nil && role == "main" && gwOK && gw != ln.HostIP {
-				add("warn", fmt.Sprintf("En la red «%s» de libvirt la salida a Internet es %s (el hipervisor). Con %s la VM puede quedar sin Internet.", ln.Network, ln.HostIP, gw))
+				add("warn", fmt.Sprintf("En la red «%s» de "+hvName(st)+" la salida a Internet es %s (el hipervisor). Con %s la VM puede quedar sin Internet.", ln.Network, ln.HostIP, gw))
 			}
 			switch role {
 			case "main":
@@ -383,7 +383,7 @@ func PlanNetwork(st *NetState, req NetRequest, revertSeconds int) *NetPlan {
 		}
 
 		if ln != nil && ln.DHCPStart != "" && ipInRange(ip, ln.DHCPStart, ln.DHCPEnd) && (!isCur || i.Mode == "dhcp") {
-			add("warn", fmt.Sprintf("%s está dentro del rango que reparte el DHCP de libvirt (%s a %s). La app la reservará para la MAC %s, para que el DHCP no se la entregue a otra VM.", ip, ln.DHCPStart, ln.DHCPEnd, i.MAC))
+			add("warn", fmt.Sprintf("%s está dentro del rango que reparte el DHCP de "+hvName(st)+" (%s a %s). La app la reservará para la MAC %s, para que el DHCP no se la entregue a otra VM.", ip, ln.DHCPStart, ln.DHCPEnd, i.MAC))
 		}
 		if i.Mode == "static" && isCur && p == i.Prefix && role == i.Role && (role == "none" || gw == i.Gateway) && dns == i.DNS && strings.Join(nets, ",") == strings.Join(i.Nets, ",") {
 			add("info", "Los datos son iguales a los actuales: no hay nada que cambiar.")
@@ -424,7 +424,7 @@ func clampRevert(s int) int {
 	return s
 }
 
-// occupiedBy dice quien usa ya una IP en la red de libvirt (otra VM, una
+// occupiedBy dice quien usa ya una IP en la red del hipervisor (otra VM, una
 // reserva o el propio hipervisor). Vacio si nadie la tiene.
 func occupiedBy(st *NetState, ln *LibvirtNet, ip, mac string) string {
 	if ln == nil {
@@ -435,10 +435,10 @@ func occupiedBy(st *NetState, ln *LibvirtNet, ip, mac string) string {
 		return "es la del hipervisor (la puerta de enlace de la red «" + ln.Network + "»)"
 	}
 	if m, ok := ln.Leases[ip]; ok && m != mac {
-		return "el DHCP de libvirt se la prestó a la tarjeta " + m
+		return "el DHCP de " + hvName(st) + " se la prestó a la tarjeta " + m
 	}
 	if m, ok := ln.Reserved[ip]; ok && m != mac {
-		return "está reservada en libvirt para la tarjeta " + m
+		return "está reservada en " + hvName(st) + " para la tarjeta " + m
 	}
 	return ""
 }
@@ -779,7 +779,7 @@ func buildPhases(st *NetState, i *NetIface, cfg *IfaceConfig, mode string, plan 
 		if st.HasArping {
 			check.Cmds = append(check.Cmds, NetCmd{Cmd: "arping -D -c 2 -w 3 -I " + I + " " + target, Note: "detección de duplicados (RFC 5227): debe recibir 0 respuestas", mustOK: true})
 		} else {
-			check.Cmds = append(check.Cmds, NetCmd{Note: "arping no está en la VM: solo se revisaron los leases y reservas de libvirt"})
+			check.Cmds = append(check.Cmds, NetCmd{Note: "arping no está en la VM: solo se revisaron los leases y reservas de " + hvName(st)})
 		}
 	} else {
 		check.Cmds = append(check.Cmds, NetCmd{Note: "no hay IP nueva que comprobar"})
@@ -883,7 +883,7 @@ func buildPhases(st *NetState, i *NetIface, cfg *IfaceConfig, mode string, plan 
 	phases = append(phases, NetPhase{Name: "Verificar", kind: "verify", Cmds: V})
 
 	C := []NetCmd{{Cmd: "systemctl stop " + unit + ".timer", Note: "todo respondió: se cancela la reversión", run: "systemctl stop " + unit + ".timer; systemctl reset-failed " + unit + ".service 2>/dev/null; true"}}
-	if ln := st.Libvirt[strings.ToLower(i.MAC)]; ln != nil && mode == "static" && ln.DHCPStart != "" && ipInRange(cfg.IP, ln.DHCPStart, ln.DHCPEnd) {
+	if ln := st.Libvirt[strings.ToLower(i.MAC)]; ln != nil && hvName(st) == "libvirt" && mode == "static" && ln.DHCPStart != "" && ipInRange(cfg.IP, ln.DHCPStart, ln.DHCPEnd) {
 		host := fmt.Sprintf("<host mac='%s' ip='%s'/>", strings.ToLower(i.MAC), cfg.IP)
 		C = append(C,
 			NetCmd{Host: true, Cmd: "virsh net-update " + ln.Network + " delete ip-dhcp-host \"<host mac='" + strings.ToLower(i.MAC) + "'/>\" --live --config", Note: "quita una reserva vieja de esta tarjeta, si la había",

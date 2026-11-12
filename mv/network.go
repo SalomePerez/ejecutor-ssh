@@ -14,10 +14,12 @@ import (
 // de los comandos de deteccion (Raw), nunca de suposiciones: los nombres de
 // las interfaces, el gestor de red y la columna "Actual" del formulario.
 type NetState struct {
-	VM          string                 `json:"vm"`
-	OS          string                 `json:"os"`
-	Family      string                 `json:"family"`
-	Manager     string                 `json:"manager"`
+	VM      string `json:"vm"`
+	OS      string `json:"os"`
+	Family  string `json:"family"`
+	Manager string `json:"manager"`
+	// Hypervisor es quien da las redes de las tarjetas: "libvirt" (vacio) o "VirtualBox".
+	Hypervisor  string                 `json:"hypervisor,omitempty"`
 	ManagerName string                 `json:"managerName"`
 	Forwarding  bool                   `json:"forwarding"`
 	CloudInit   bool                   `json:"cloudInit"`
@@ -125,6 +127,11 @@ func splitSections(output string) []RawCommand {
 // ReadNetwork lee la red de una VM encendida: dentro de la VM por el agente
 // y, desde el hipervisor, la red de libvirt de cada tarjeta.
 func (p *LibvirtProvider) ReadNetwork(name string) (*NetState, error) {
+	return readNetwork(p, name)
+}
+
+// readNetwork es comun a todos los proveedores (ver netBackend).
+func readNetwork(p netBackend, name string) (*NetState, error) {
 	// Mismo margen que las fases de aplicar: en una VM emulada (TCG) la
 	// lectura tarda 25-35 s, y con 30 s fallaba una vez si y otra no.
 	res, err := p.GuestExec(name, detectScript(), guestStepTimeout)
@@ -138,7 +145,8 @@ func (p *LibvirtProvider) ReadNetwork(name string) (*NetState, error) {
 	state := ParseNetState(sections)
 	state.VM = name
 	state.ReadAt = time.Now()
-	state.Libvirt = p.libvirtNetworks(name)
+	state.Libvirt = p.hostNetworks(name)
+	state.Hypervisor = p.hypervisorName()
 	return state, nil
 }
 

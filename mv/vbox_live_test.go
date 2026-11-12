@@ -35,7 +35,7 @@ func TestVBoxLiveGuestExec(t *testing.T) {
 	creds := GuestCredentials{User: os.Getenv("VBOX_GUEST_USER"), Password: os.Getenv("VBOX_GUEST_PASS")}
 	p := NewVBoxProvider(VBoxManageRunner{Path: `C:\Program Files\Oracle\VirtualBox\VBoxManage.exe`},
 		func(string) (GuestCredentials, error) { return creds, nil })
-	res, err := p.GuestExec(os.Getenv("VBOX_VM"), "id; ip -br a; ls /nada", 30e9)
+	res, err := p.GuestExec(os.Getenv("VBOX_VM"), `id -un; echo "comillas 'simples' y $HOME"; ip -br a; ls /nada`, 30e9)
 	if err != nil {
 		t.Fatal(err)
 	}

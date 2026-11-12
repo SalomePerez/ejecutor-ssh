@@ -54,7 +54,12 @@ const guestStepTimeout = 90 * time.Second
 // atras programada dentro de la VM), escribir, aplicar, verificar y cerrar.
 // Si algo falla despues del respaldo, dispara la reversion de inmediato.
 func (p *LibvirtProvider) ApplyNetwork(name string, req NetRequest, revertSeconds int) (*ApplyResult, error) {
-	st, err := p.ReadNetwork(name)
+	return applyNetwork(p, name, req, revertSeconds)
+}
+
+// applyNetwork es comun a todos los proveedores (ver netBackend).
+func applyNetwork(p netBackend, name string, req NetRequest, revertSeconds int) (*ApplyResult, error) {
+	st, err := readNetwork(p, name)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +80,7 @@ func (p *LibvirtProvider) ApplyNetwork(name string, req NetRequest, revertSecond
 				step.Lines = append(step.Lines, ApplyLine{Note: c.Note})
 				continue
 			}
-			line, ok := p.runPlanCmd(name, c)
+			line, ok := runPlanCmd(p, name, c)
 			step.Lines = append(step.Lines, line)
 			if !ok && !c.soft && !c.ignoreErr {
 				failed = true
@@ -108,7 +113,7 @@ func (p *LibvirtProvider) ApplyNetwork(name string, req NetRequest, revertSecond
 			u := plan.revertUnit
 			// El servicio corre en segundo plano: se espera a que termine para
 			// que la lectura final muestre la configuracion ya restaurada.
-			line, ok := p.runPlanCmd(name, NetCmd{Cmd: "systemctl start " + u + ".service", Note: "la app no espera los " + fmt.Sprint(plan.RevertSeconds) + " s: dispara la reversión ya",
+			line, ok := runPlanCmd(p, name, NetCmd{Cmd: "systemctl start " + u + ".service", Note: "la app no espera los " + fmt.Sprint(plan.RevertSeconds) + " s: dispara la reversión ya",
 				run: fmt.Sprintf("systemctl start %s.service || exit 1; systemctl stop %s.timer 2>/dev/null; for k in $(seq 1 60); do systemctl is-active --quiet %s.service || break; sleep 1; done; true", u, u, u), mustOK: true})
 			rev.Lines = append(rev.Lines, line)
 			if !ok {
@@ -127,7 +132,7 @@ func (p *LibvirtProvider) ApplyNetwork(name string, req NetRequest, revertSecond
 		result.Message = "Aplicado y verificado. Quedó en el archivo, así que sobrevive a un reinicio."
 	}
 
-	if fresh, err := p.ReadNetwork(name); err == nil {
+	if fresh, err := readNetwork(p, name); err == nil {
 		result.State = fresh
 	}
 	return result, nil
@@ -135,7 +140,7 @@ func (p *LibvirtProvider) ApplyNetwork(name string, req NetRequest, revertSecond
 
 // runPlanCmd ejecuta un comando del plan en la VM (por el agente) o en el
 // hipervisor (por SSH) y decide si cumplio lo esperado.
-func (p *LibvirtProvider) runPlanCmd(name string, c NetCmd) (ApplyLine, bool) {
+func runPlanCmd(p netBackend, name string, c NetCmd) (ApplyLine, bool) {
 	line := ApplyLine{Cmd: c.Cmd, Note: c.Note, Host: c.Host}
 	run := c.run
 	if run == "" {
@@ -150,7 +155,7 @@ func (p *LibvirtProvider) runPlanCmd(name string, c NetCmd) (ApplyLine, bool) {
 		var output string
 		var code int
 		if c.Host {
-			out, err := p.sshClient.ExecuteCommand(run)
+			out, err := p.runHost(run)
 			output = string(out)
 			if err != nil {
 				code = 1
