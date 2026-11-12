@@ -39,7 +39,9 @@ func (p *VBoxProvider) GuestExec(name, script string, timeout time.Duration) (*G
 	output, runErr := p.vbox.Run("guestcontrol", name, "run",
 		"--username", creds.User, "--password", creds.Password,
 		"--timeout", strconv.FormatInt(timeout.Milliseconds(), 10),
-		"--wait-stdout", "--exe", "/bin/sh", "--", "sh", "-c", wrapped)
+		// En VirtualBox 7 lo que sigue a "--" son solo los argumentos (sin
+		// argv[0]): "-- sh -c" le pasaria "sh" como script a /bin/sh.
+		"--wait-stdout", "--exe", "/bin/sh", "--", "-c", wrapped)
 	text := strings.ReplaceAll(string(output), "\r\n", "\n")
 	m := reExitMarker.FindStringSubmatchIndex(text)
 	if m == nil {
