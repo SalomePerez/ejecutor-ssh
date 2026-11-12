@@ -34,12 +34,22 @@ func main() {
 		vmProvider = vm.NewLibvirtProvider(hypervisorRunner{cfg: cfg})
 	} else {
 		// VirtualBox es el hipervisor real, en este mismo equipo.
-		vmProvider = vm.NewVBoxProvider(vm.VBoxManageRunner{Path: cfg.VBoxManagePath}, func(string) (vm.GuestCredentials, error) {
+		vbox := vm.NewVBoxProvider(vm.VBoxManageRunner{Path: cfg.VBoxManagePath}, func(string) (vm.GuestCredentials, error) {
 			if cfg.VBoxGuestUser == "" {
 				return vm.GuestCredentials{}, fmt.Errorf("falta vbox.guest.user en config.properties")
 			}
 			return vm.GuestCredentials{User: cfg.VBoxGuestUser, Password: cfg.VBoxGuestPassword}, nil
 		})
+		vbox.SetOptions(vm.VBoxOptions{
+			TemplatesDir: cfg.VBoxTemplatesDir,
+			SharedDir:    cfg.VBoxSharedDir,
+			SeedsDir:     cfg.VBoxSeedsDir,
+			SeedURL:      cfg.VBoxSeedURL,
+			AdditionsISO: cfg.VBoxAdditionsISO,
+		})
+		// cloud-init de las VMs nuevas pide aqui su configuracion.
+		http.Handle("/cloud-init/", handlers.CloudInitHandler{Source: vbox})
+		vmProvider = vbox
 	}
 	log.Printf("hipervisor: %s", cfg.VMProvider)
 

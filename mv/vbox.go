@@ -3,7 +3,9 @@ package vm
 import (
 	"bufio"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -61,6 +63,7 @@ type VBoxProvider struct {
 	// credentials devuelve las credenciales de invitado de una VM.
 	credentials func(vmName string) (GuestCredentials, error)
 	sleep       func(time.Duration)
+	opts        VBoxOptions
 }
 
 func NewVBoxProvider(runner vboxRunner, credentials func(string) (GuestCredentials, error)) *VBoxProvider {
@@ -274,7 +277,14 @@ func (p *VBoxProvider) vmFromInfo(name string, values map[string]string) VM {
 	if status == VMStatusRunning {
 		ip = p.guestIP(name)
 	}
+	user := ""
+	if p.credentials != nil {
+		if c, err := p.credentials(name); err == nil {
+			user = c.User
+		}
+	}
 	return VM{
+		SSHUser:    user,
 		Name:       name,
 		Distro:     distro,
 		CPU:        cpu,
@@ -486,15 +496,8 @@ func (p *VBoxProvider) Delete(name string) error {
 	if _, err := p.vbox.Run("unregistervm", name, "--delete"); err != nil {
 		return fmt.Errorf("eliminar VM %s: %w", name, err)
 	}
+	if p.opts.SeedsDir != "" {
+		_ = os.RemoveAll(filepath.Join(p.opts.SeedsDir, name))
+	}
 	return nil
-}
-
-// ListTemplates y Create se implementan cuando se defina el aprovisionamiento
-// con plantillas e imagenes de nube (cloud-init) para VirtualBox.
-func (p *VBoxProvider) ListTemplates() ([]Template, error) {
-	return []Template{}, nil
-}
-
-func (p *VBoxProvider) Create(spec CreateSpec) (*VM, error) {
-	return nil, fmt.Errorf("crear VMs en VirtualBox todavia no esta implementado")
 }

@@ -17,3 +17,6 @@ bin/
 # Material de presentacion (no es codigo)
 presentacion/
 presentacion - copia/
+
+# Archivos de cloud-init que la app sirve a las VMs nuevas
+seeds/

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 )
@@ -44,6 +45,13 @@ type Config struct {
 	// token, la contrasena no se expone por la API de configuracion.
 	VBoxGuestUser     string
 	VBoxGuestPassword string
+	// Plantillas (discos .vdi/.vmdk), discos compartidos, archivos de
+	// cloud-init, URL con la que las VMs ven a la app y ISO de Guest Additions.
+	VBoxTemplatesDir string
+	VBoxSharedDir    string
+	VBoxSeedsDir     string
+	VBoxSeedURL      string
+	VBoxAdditionsISO string
 
 	// Configuracion del shell remoto
 	ShellType      string // cmd, powershell, both
@@ -108,6 +116,9 @@ func Load(filePath string) (*Config, error) {
 		VBoxManagePath:      get("vbox.manage", `C:\Program Files\Oracle\VirtualBox\VBoxManage.exe`),
 		VBoxGuestUser:       getEnv("VBOX_GUEST_USER", get("vbox.guest.user", "")),
 		VBoxGuestPassword:   getEnv("VBOX_GUEST_PASSWORD", get("vbox.guest.password", "")),
+		VBoxTemplatesDir:    get("vbox.templates", filepath.Join(os.Getenv("USERPROFILE"), "VirtualBox VMs", "plantillas")),
+		VBoxSharedDir:       get("vbox.sharedDisks", filepath.Join(os.Getenv("USERPROFILE"), "VirtualBox VMs", "discos-compartidos")),
+		VBoxSeedsDir:        get("vbox.seeds", "./seeds"),
 		ShellType:           get("shell.type", "cmd"),
 		ShellStartPath:      get("shell.startingPath", "C:\\"),
 		ExecutionMode:       getEnv("EXECUTION_MODE", get("execution.mode", "remote")),
@@ -122,6 +133,8 @@ func Load(filePath string) (*Config, error) {
 		AppVersion:          get("app.version", "2.0.0"),
 		configPath:          filePath,
 	}
+	cfg.VBoxSeedURL = get("vbox.seedURL", "http://10.0.2.2:"+cfg.WebPort)
+	cfg.VBoxAdditionsISO = get("vbox.additionsISO", filepath.Join(filepath.Dir(cfg.VBoxManagePath), "VBoxGuestAdditions.iso"))
 
 	return cfg, nil
 }
@@ -228,6 +241,7 @@ func (cfg *Config) ToJSON() ([]byte, error) {
 		"commands.allowed":         strings.Join(cfg.AllowedCommands, ","),
 		"vm.provider":              cfg.VMProvider,
 		"vbox.guest.user":          cfg.VBoxGuestUser,
+		"vbox.templates":           cfg.VBoxTemplatesDir,
 		"vm.ssh.host":              cfg.VMSSHHost,
 		"vm.ssh.port":              cfg.VMSSHPort,
 		"vm.ssh.user":              cfg.VMSSHUser,
@@ -399,7 +413,7 @@ func (cfg *Config) saveToFile() error {
 		},
 		{
 			titulo: "Hipervisor: virtualbox (VBoxManage local) o libvirt (SSH, diseno anterior)",
-			claves: []string{"vm.provider", "vbox.manage", "vbox.guest.user", "vbox.guest.password"},
+			claves: []string{"vm.provider", "vbox.manage", "vbox.guest.user", "vbox.guest.password", "vbox.templates", "vbox.sharedDisks", "vbox.seeds", "vbox.seedURL", "vbox.additionsISO"},
 		},
 		{
 			titulo: "Configuracion de Shell Remoto",

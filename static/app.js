@@ -13,7 +13,7 @@ const EXPERIMENTAL = new URLSearchParams(location.search).has('experimental');
 document.documentElement.classList.toggle('experimental', EXPERIMENTAL);
 // Plantillas verificadas de punta a punta (crear, primer arranque, agente, Red).
 // Debian 12 solo emulada: con KVM tumba el hipervisor (ver EMULATED_DISTROS).
-const VERIFIED_TEMPLATE = /ubuntu|debian-12/i;
+const VERIFIED_TEMPLATE = /ubuntu|debian-1[23]/i;
 
 // ============== UTILIDADES ==============
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -585,7 +585,7 @@ function renderVMs() {
     ? `<span class="chip dim">${vmCache.length} ${vmCache.length === 1 ? 'VM' : 'VMs'}</span><span class="chip ok">${on} encendida${on === 1 ? '' : 's'}</span>`
     : '') + (hostInfo ? `<span class="chip ${over ? 'bad' : 'dim'}" title="Memoria de las VMs encendidas / memoria total del hipervisor">RAM ${(used / 1024).toFixed(1)} de ${(hostInfo.memoryMB / 1024).toFixed(1)} GB</span>` : '');
   $('#vm-mem-warning').hidden = !over;
-  if (over) $('#vm-mem-warning').innerHTML = `<span>⚠</span><span>Las VMs encendidas piden <b>${(used / 1024).toFixed(1)} GB</b> y el hipervisor tiene <b>${(hostInfo.memoryMB / 1024).toFixed(1)} GB</b>. Todo irá lento y el agente QEMU tardará mucho en responder. Apague las VMs que no esté usando.</span>`;
+  if (over) $('#vm-mem-warning').innerHTML = `<span>⚠</span><span>Las VMs encendidas piden <b>${(used / 1024).toFixed(1)} GB</b> y el hipervisor tiene <b>${(hostInfo.memoryMB / 1024).toFixed(1)} GB</b>. Todo irá lento y el canal del hipervisor tardará mucho en responder. Apague las VMs que no esté usando.</span>`;
   if (!vmCache.length) { list.innerHTML = '<p class="placeholder">No hay máquinas virtuales. Cree la primera con el formulario.</p>'; return; }
   list.innerHTML = vmCache.map(vm => {
     const [cls, label] = vmStateLabel(vm.status);
@@ -930,7 +930,7 @@ async function loadTemplates() {
   const list = EXPERIMENTAL ? all : all.filter(t => VERIFIED_TEMPLATE.test(t.name));
   select.innerHTML = list.length
     ? list.map(t => `<option value="${esc(t.path)}">${esc(t.name)} (${esc(t.format)})</option>`).join('')
-    : '<option value="">No hay plantillas en /var/lib/libvirt/templates</option>';
+    : `<option value="">No hay plantillas en ${esc(configCache['vbox.templates'] || 'la carpeta de plantillas')}</option>`;
   syncDistro();
 }
 
@@ -992,7 +992,7 @@ $('#vm-create-form').addEventListener('submit', async e => {
   if (vmCache.some(v => v.name === name)) problems.push('ya existe una VM con ese nombre');
   if (!payload.imagePath) problems.push('no hay plantilla seleccionada');
   const mainNet = vnetCache.find(n => n.name === payload.networks[0]);
-  if (mainNet && mainNet.mode !== 'nat') problems.push(`la tarjeta principal está en «${mainNet.name}» (${NET_MODES[mainNet.mode] || mainNet.mode}), sin internet: el primer arranque no podría instalar el agente QEMU. Use una red NAT como principal`);
+  if (mainNet && mainNet.mode !== 'nat') problems.push(`la tarjeta principal está en «${mainNet.name}» (${NET_MODES[mainNet.mode] || mainNet.mode}), sin internet: el primer arranque no podría pedir su configuración ni instalar las Guest Additions. Use nat como principal`);
   if (!(payload.cpu >= 1)) problems.push('mínimo 1 vCPU');
   if (!(payload.memoryMB >= 512)) problems.push('mínimo 512 MB de memoria');
   if (!(payload.diskGB >= 5)) problems.push('mínimo 5 GB de disco');
@@ -1009,7 +1009,7 @@ $('#vm-create-form').addEventListener('submit', async e => {
 
   const btn = $('#vm-create-btn');
   busy(btn, true, 'Creando VM… (unos 30 s)');
-  statusBox(statusEl, 'info', 'Creando el disco derivado y definiendo la VM en libvirt…', 0);
+  statusBox(statusEl, 'info', 'Copiando la plantilla y creando la VM en el hipervisor…', 0);
   const r = await api('/api/vms', { method: 'POST', body: payload });
   busy(btn, false);
   if (r.ok && r.data.success) {
