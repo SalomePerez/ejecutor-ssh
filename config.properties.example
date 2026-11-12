@@ -1,0 +1,60 @@
+
+# ============================================
+# Configuracion del Servidor Web
+# ============================================
+
+web.addr=:8081
+web.port=8081
+
+# ============================================
+# Configuracion SSH por Defecto
+# ============================================
+
+ssh.host=192.168.1.25
+ssh.port=22
+ssh.user=vboxuser
+ssh.keyPath=~/.ssh/id_ed25519
+ssh.knownHostsPath=~/.ssh/known_hosts
+
+# ============================================
+# Configuracion SSH del Hipervisor
+# ============================================
+
+vm.ssh.host=127.0.0.1
+vm.ssh.port=2222
+vm.ssh.user=vboxuser
+vm.ssh.keyPath=~/.ssh/id_ed25519
+vm.ssh.knownHostsPath=~/.ssh/known_hosts
+vm.network.revertSeconds=120
+
+# ============================================
+# Configuracion de Shell Remoto
+# ============================================
+
+shell.type=powershell
+shell.startingPath=C:\\
+execution.mode=remote
+
+# ============================================
+# Configuracion de Usuarios y Llaves
+# ============================================
+
+keys.storePath=./keys
+users.storePath=./users
+keys.algorithm=ed25519
+
+# ============================================
+# Configuracion de Seguridad
+# ============================================
+
+ssh.timeout=10
+request.maxSize=4096
+commands.allowed=dir,hostname,whoami,ipconfig,systeminfo
+security.apiToken=
+
+# ============================================
+# Metadata
+# ============================================
+
+app.name=Ejecutor SSH v2
+app.version=2.0.0

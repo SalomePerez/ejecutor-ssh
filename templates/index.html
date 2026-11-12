@@ -1,0 +1,638 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ejecutor SSH</title>
+  <script>
+    // Aplica el tema guardado antes de pintar, para que no parpadee.
+    try { const t = localStorage.getItem('theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+  </script>
+  <link rel="stylesheet" href="/static/style.css?v=24">
+  <link rel="stylesheet" href="/static/network.css?v=24">
+</head>
+<body>
+  <main class="shell">
+    <!-- Barra de la aplicacion: marca, pestanas, estado del hipervisor y tema -->
+    <header class="appbar">
+      <div class="brand">
+        <span class="brand-kicker">Plataforma de operaciones</span>
+        <h1>Ejecutor SSH</h1>
+      </div>
+      <nav class="tabs-nav" role="tablist" aria-label="Módulos">
+        <button class="tab-btn active" data-tab="vms" role="tab" aria-selected="true">Máquinas virtuales</button>
+        <button class="tab-btn" data-tab="commands" role="tab" aria-selected="false">Comandos</button>
+        <button class="tab-btn" data-tab="keys" role="tab" aria-selected="false">Llaves SSH</button>
+        <button class="tab-btn" data-tab="users" role="tab" aria-selected="false">Usuarios</button>
+        <button class="tab-btn" data-tab="config" role="tab" aria-selected="false">Configuración</button>
+      </nav>
+      <div class="bar-right">
+        <button type="button" id="hv-status" class="conn-pill wait" title="Conexión con el hipervisor (clic para configurarla)">
+          <span class="dot"></span><span class="txt">Hipervisor…</span>
+        </button>
+        <button type="button" id="theme-toggle" class="icon-btn" aria-label="Cambiar entre tema claro y oscuro" title="Tema claro / oscuro">◐</button>
+      </div>
+    </header>
+
+    <!-- ============== MÁQUINAS VIRTUALES ============== -->
+    <section class="tab-content active" id="vms-tab" role="tabpanel">
+      <div class="vm-head">
+        <h2>Máquinas virtuales</h2>
+        <div class="vm-subtabs" role="tablist" aria-label="Módulo de máquinas virtuales">
+          <button type="button" role="tab" data-vmtab="manage" aria-selected="true">Máquinas</button>
+          <button type="button" role="tab" data-vmtab="nets" aria-selected="false" class="exp-only">Redes virtuales</button>
+          <button type="button" role="tab" data-vmtab="net" aria-selected="false">Red</button>
+          <button type="button" role="tab" data-vmtab="docs" aria-selected="false">Documentación</button>
+        </div>
+      </div>
+
+      <!-- ---------- Sub-pestaña: Máquinas (listar y crear) ---------- -->
+      <div class="vm-pane" id="vm-pane-manage" role="tabpanel">
+        <div class="two-column">
+          <section class="card">
+            <div class="card-head">
+              <div>
+                <h3>Inventario</h3>
+                <div class="vm-summary" id="vm-summary"></div>
+              </div>
+              <button type="button" class="btn-secondary" id="vm-refresh" title="Volver a leer las VMs del hipervisor">↻ Actualizar</button>
+            </div>
+            <div class="notice warn" id="vm-mem-warning" hidden></div>
+            <div id="vms-list" class="items-list" aria-live="polite">
+              <div class="skeleton"></div><div class="skeleton"></div>
+            </div>
+          </section>
+
+          <section class="card accent">
+            <div class="card-head"><h3>Crear nueva VM</h3></div>
+            <form id="vm-create-form" class="form-group" novalidate>
+              <div class="form-item">
+                <label for="vm-name">Nombre</label>
+                <input type="text" id="vm-name" required placeholder="vm-ubuntu-01" autocomplete="off" spellcheck="false">
+                <small>Letras, números y guiones. Será también el nombre de su llave SSH.</small>
+              </div>
+              <div class="form-item">
+                <label for="vm-template">Plantilla del sistema</label>
+                <select id="vm-template" required>
+                  <option value="">Cargando plantillas…</option>
+                </select>
+                <small>La plantilla no se modifica: cada VM recibe un disco derivado.</small>
+              </div>
+              <div class="form-item">
+                <label for="vm-distro">Distribución</label>
+                <select id="vm-distro" required>
+                  <option value="ubuntu-24.04">Ubuntu 24.04</option>
+                  <option value="debian-12">Debian 12</option>
+                  <option value="debian-13">Debian 13</option>
+                  <option value="fedora-42">Fedora 42</option>
+                  <option value="arch">Arch Linux</option>
+                  <option value="rocky-9">Rocky 9</option>
+                </select>
+                <small id="vm-distro-help">Se elige sola según la plantilla.</small>
+              </div>
+              <div class="form-item">
+                <label><input type="checkbox" id="vm-emulated"> Emulación sin KVM (lenta)</label>
+                <small id="vm-emulated-help">Para sistemas que tumban el hipervisor con VT-x anidado. El primer arranque tarda varios minutos más.</small>
+              </div>
+              <fieldset class="exp-only">
+                <legend>Tarjetas de red</legend>
+                <div class="form-item">
+                  <label for="vm-net-main">Tarjeta principal</label>
+                  <select id="vm-net-main"><option value="default">default</option></select>
+                  <small id="vm-net-main-help">Necesita salida a internet (modo NAT) para que el primer arranque instale el agente QEMU.</small>
+                </div>
+                <div class="form-item">
+                  <span class="label">Tarjetas adicionales <span class="opt">(opcional)</span></span>
+                  <div class="net-extra-list" id="vm-net-extra"><small>No hay otras redes. Créelas en <a href="#" data-vmtab-go="nets">Redes virtuales</a>.</small></div>
+                  <small>Quedan sin IP: se configuran después en <b>Red</b>.</small>
+                </div>
+              </fieldset>
+              <div class="form-item">
+                <span class="label">Tamaño</span>
+                <div class="presets" id="vm-presets" role="group" aria-label="Tamaños predefinidos">
+                  <button type="button" data-cpu="1" data-mem="1024" data-disk="10">Pequeña · 1 vCPU · 1 GB</button>
+                  <button type="button" data-cpu="2" data-mem="2048" data-disk="20" aria-pressed="true">Mediana · 2 vCPU · 2 GB</button>
+                  <button type="button" data-cpu="4" data-mem="4096" data-disk="40">Grande · 4 vCPU · 4 GB</button>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-item">
+                  <label for="vm-cpu">vCPU</label>
+                  <input type="number" id="vm-cpu" value="2" min="1" max="64" required>
+                </div>
+                <div class="form-item">
+                  <label for="vm-memory">Memoria (MB)</label>
+                  <input type="number" id="vm-memory" value="2048" min="512" step="256" required>
+                </div>
+                <div class="form-item">
+                  <label for="vm-disk">Disco (GB)</label>
+                  <input type="number" id="vm-disk" value="20" min="5" max="2048" required>
+                </div>
+              </div>
+              <div class="form-item">
+                <label for="vm-user">Usuario SSH dentro de la VM</label>
+                <input type="text" id="vm-user" value="ubuntu" placeholder="ubuntu" autocomplete="off" spellcheck="false">
+              </div>
+              <details class="more">
+                <summary>Discos de datos adicionales <span class="chip dim" id="vm-disks-count">0</span></summary>
+                <div class="form-group">
+                  <div id="vm-disks" class="vm-disks-list"></div>
+                  <button type="button" id="vm-add-disk" class="btn-secondary">+ Agregar disco de datos</button>
+                  <small>Un disco <b>compartido</b> puede conectarse a varias VMs; no lo uses como disco del sistema.</small>
+                </div>
+              </details>
+              <div class="notice info"><span>ⓘ</span><span>La VM queda <b>encendida</b> en su primer arranque: cloud-init crea el usuario, instala la llave y el agente QEMU. El panel de <b>Red</b> estará disponible en unos 3–4 minutos.</span></div>
+              <button type="submit" class="btn-primary" id="vm-create-btn">Crear VM</button>
+            </form>
+            <div id="vm-create-status" class="status-box" role="status"></div>
+          </section>
+        </div>
+      </div>
+
+
+      <!-- ---------- Sub-pestaña: Redes virtuales (switches de libvirt) ---------- -->
+      <div class="vm-pane exp-only" id="vm-pane-nets" role="tabpanel" hidden>
+        <div class="two-column">
+          <section class="card">
+            <div class="card-head">
+              <div><h3>Redes del hipervisor</h3><div class="card-head sub">Cada red es un switch virtual (un bridge <code>virbrN</code>) dentro del hipervisor.</div></div>
+              <button type="button" class="btn-secondary" id="vnet-refresh">↻ Actualizar</button>
+            </div>
+            <div id="vnet-list" class="items-list"><div class="skeleton"></div></div>
+          </section>
+
+          <section class="card accent">
+            <h3>Crear red virtual</h3>
+            <form id="vnet-form" class="form-group" novalidate>
+              <div class="form-item">
+                <label for="vnet-name">Nombre</label>
+                <input id="vnet-name" required placeholder="aislada" autocomplete="off" spellcheck="false">
+              </div>
+              <div class="form-item">
+                <span class="label">Modo</span>
+                <div class="mode-cards" role="radiogroup" aria-label="Modo de la red">
+                  <label class="mode-card"><input type="radio" name="vnet-mode" value="isolated" checked>
+                    <b>Aislada</b><span>Las VMs se ven entre sí y con el hipervisor. Sin internet. Para prácticas de red cerradas.</span></label>
+                  <label class="mode-card"><input type="radio" name="vnet-mode" value="nat">
+                    <b>NAT</b><span>Salen a internet a través del hipervisor, como <code>default</code>. Desde fuera no se llega a ellas.</span></label>
+                  <label class="mode-card"><input type="radio" name="vnet-mode" value="route">
+                    <b>Enrutada</b><span>Sin traducir direcciones: otros equipos llegan a las VMs si tienen una ruta hacia esta red.</span></label>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-item">
+                  <label for="vnet-subnet">Subred</label>
+                  <input id="vnet-subnet" required placeholder="192.168.100.0/24" value="192.168.100.0/24" autocomplete="off" spellcheck="false">
+                </div>
+                <div class="form-item">
+                  <span class="label">DHCP</span>
+                  <label class="check"><input type="checkbox" id="vnet-dhcp" checked> Repartir IPs automáticamente</label>
+                </div>
+              </div>
+              <small id="vnet-preview" class="mono"></small>
+              <button type="submit" class="btn-primary">Crear red</button>
+            </form>
+            <div id="vnet-status" class="status-box" role="status"></div>
+          </section>
+        </div>
+      </div>
+
+      <!-- ---------- Sub-pestaña: Red (lista de VMs + panel, como el prototipo) ---------- -->
+      <div class="vm-pane" id="vm-pane-net" role="tabpanel" hidden>
+        <div class="net-layout">
+          <aside class="net-vms" aria-label="Máquinas virtuales">
+            <h3>Máquinas virtuales</h3>
+            <div id="net-vmlist" class="net-vmlist"><p class="placeholder">Cargando…</p></div>
+            <p class="net-vms-hint">La red se lee por el agente QEMU de la VM: solo se pueden abrir las que están encendidas.</p>
+          </aside>
+
+          <section class="net-panel" id="net-panel" aria-labelledby="net-title">
+            <div class="net-head">
+              <h2 id="net-title">Red</h2>
+            </div>
+            <div id="net-loading" class="net-loading">Escoja una máquina virtual encendida en la lista de la izquierda.</div>
+            <div id="net-body" hidden>
+              <div class="net-detect" id="net-detect"></div>
+              <div class="net-distline" id="net-distline"></div>
+              <details class="net-raw">
+                <summary>Ver lo que leyó la app</summary>
+                <pre class="net-term" id="net-raw"></pre>
+              </details>
+
+              <div class="net-step">
+                <h3><span class="k">1</span> Interfaz <small>leídas con <code>ip -br link</code>, <code>ip -4 addr</code>, <code>ip r</code> y <code>/sys/class/net</code></small></h3>
+                <div class="net-ifaces" id="net-ifaces"></div>
+                <p class="net-note" id="net-ifnote"></p>
+                <details class="net-learn" id="net-L-iface"><summary><span class="lt">Para entender</span><span class="net-ls"></span></summary><div class="net-lb"></div></details>
+              </div>
+
+              <div class="net-step">
+                <h3><span class="k">2</span> Modo</h3>
+                <div class="net-seg" role="group" aria-label="Modo de configuración" id="net-modes">
+                  <button type="button" data-mode="dhcp">DHCP</button>
+                  <button type="button" data-mode="static">IP fija</button>
+                  <button type="button" data-mode="extra">IP adicional</button>
+                </div>
+                <p class="net-help" id="net-modehelp"></p>
+                <details class="net-learn" id="net-L-mode"><summary><span class="lt">Para entender</span><span class="net-ls"></span></summary><div class="net-lb"></div></details>
+              </div>
+
+              <div class="net-step">
+                <h3><span class="k">3</span> Los datos <small>la columna Actual viene de la VM; Nuevo arranca lleno</small></h3>
+                <div class="net-fields" id="net-fields">
+                  <div class="hd">Dato</div><div class="hd">Actual (leído)</div><div class="hd">Nuevo</div>
+                  <div class="row" data-k="ip"><div class="lab">Dirección IP</div><div class="cur" id="net-a-ip"></div>
+                    <div class="new"><input id="net-f-ip" aria-label="Nueva dirección IP" autocomplete="off" spellcheck="false"><span class="hint" id="net-h-ip"></span></div></div>
+                  <div class="row" data-k="mask"><div class="lab">Máscara <small>255.255.255.0 o /24</small></div><div class="cur" id="net-a-mask"></div>
+                    <div class="new"><input id="net-f-mask" aria-label="Nueva máscara" autocomplete="off" spellcheck="false"><span class="hint" id="net-h-mask"></span></div></div>
+                  <div class="row" data-k="gw"><div class="lab">Puerta de enlace</div><div class="cur" id="net-a-gw"></div>
+                    <div class="new"><input id="net-f-gw" aria-label="Nueva puerta de enlace" autocomplete="off" spellcheck="false"></div></div>
+                  <div class="row" data-k="gw"><div class="lab">Uso de la puerta de enlace <small>con varias tarjetas puede haber varias</small></div><div class="cur" id="net-a-role"></div>
+                    <div class="new"><select id="net-f-role" aria-label="Uso de la puerta de enlace">
+                      <option value="main">Principal (ruta por defecto)</option>
+                      <option value="backup">Respaldo (ruta por defecto, métrica 600)</option>
+                      <option value="routes">Solo hacia ciertas redes</option>
+                      <option value="none">Ninguna (solo su red local)</option>
+                    </select></div></div>
+                  <div class="row" data-k="gw" id="net-r-nets" hidden><div class="lab">Redes destino <small>separadas por coma</small></div><div class="cur" id="net-a-nets"></div>
+                    <div class="new"><input id="net-f-nets" aria-label="Redes destino" autocomplete="off" spellcheck="false"></div></div>
+                  <div class="row" data-k="dns"><div class="lab">DNS <small>resolver</small></div><div class="cur" id="net-a-dns"></div>
+                    <div class="new"><input id="net-f-dns" aria-label="Nuevo servidor DNS" autocomplete="off" spellcheck="false"></div></div>
+                </div>
+                <ul class="net-checks" id="net-checks" aria-live="polite"></ul>
+                <details class="net-learn" id="net-L-field"><summary><span class="lt">Para entender</span><span class="net-ls"></span></summary><div class="net-lb"></div></details>
+              </div>
+
+              <div class="net-step">
+                <h3><span class="k">4</span> Lo que se va a enviar <small>antes de aplicar, se ve exacto</small></h3>
+                <div class="net-ptabs" role="tablist">
+                  <button type="button" role="tab" id="net-t-file" aria-selected="true">Archivo resultante</button>
+                  <button type="button" role="tab" id="net-t-cmd" aria-selected="false">Comandos</button>
+                  <button type="button" role="tab" id="net-t-route" aria-selected="false">Tabla de rutas</button>
+                </div>
+                <div id="net-preview"></div>
+                <details class="net-learn" id="net-L-prev"><summary><span class="lt">Para entender</span><span class="net-ls"></span></summary><div class="net-lb"></div></details>
+              </div>
+
+              <div class="net-actions">
+                <button type="button" class="btn-primary" id="net-apply" disabled>Aplicar con reversión</button>
+                <button type="button" class="btn-secondary" id="net-reset">Restablecer valores</button>
+              </div>
+
+              <div class="net-run" id="net-run" hidden>
+                <ol class="net-stepper" id="net-stepper"></ol>
+                <pre class="net-term" id="net-log" aria-live="polite"></pre>
+                <div id="net-result"></div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <!-- ---------- Sub-pestaña: Documentación ---------- -->
+      <div class="vm-pane" id="vm-pane-docs" role="tabpanel" hidden>
+        <div class="form-section net-docs" id="net-docs">
+          <div class="net-dhead">
+            <h3>Documentación</h3>
+            <div class="net-dtabs" role="tablist" aria-label="Documentación">
+              <button type="button" role="tab" data-dtab="manual" aria-selected="true">Manual de uso</button>
+              <button type="button" role="tab" data-dtab="distro" aria-selected="false">Manuales por distribución</button>
+              <button type="button" role="tab" data-dtab="bib" aria-selected="false">Bibliografía</button>
+            </div>
+          </div>
+
+          <div class="net-dpane" id="net-d-manual" role="tabpanel">
+            <p class="net-lead">Cómo cambiar la red de una VM sin perder el acceso. Deslice las tarjetas o use las flechas. En el panel de Red, cada paso tiene un recuadro <b>Para entender</b> que se abre con un clic.</p>
+            <div class="net-carousel">
+              <div class="net-track" id="net-mtrack" tabindex="0" aria-label="Pasos del manual">
+                <article class="net-card"><span class="no">1</span><h4>Escoja la VM</h4><p>En la sub-pestaña Red, a la izquierda, o con el botón «Red» de cada VM. Tiene que estar encendida: la app lee su red por el agente QEMU. Lo que leyó está en «Ver lo que leyó la app». Todavía no escribe nada.</p></article>
+                <article class="net-card"><span class="no">2</span><h4>Paso 1 · Interfaz</h4><p>Aparecen todas las tarjetas que la app encontró. Las etiquetas dicen cuál tiene la ruta por defecto, de qué red de libvirt es y cuáles son virtuales (Docker, VPN…), que no se configuran desde aquí. Si hay varias tarjetas, configúrelas una a la vez.</p></article>
+                <article class="net-card"><span class="no">3</span><h4>Paso 2 · Modo</h4><p><i>DHCP</i> si en esa red hay un servidor que entregue los datos (en la red NAT de libvirt, el hipervisor). <i>IP fija</i> para servidores. <i>IP adicional</i> para sumar una dirección sin quitar la actual.</p></article>
+                <article class="net-card"><span class="no">4</span><h4>Paso 3 · Los datos</h4><p>IP, máscara, puerta de enlace y DNS. En <i>Uso de la puerta de enlace</i> decida su papel: principal (una sola), respaldo, solo hacia ciertas redes o ninguna. La app valida contra la VM y contra libvirt: mientras haya algo en rojo, Aplicar no se activa.</p></article>
+                <article class="net-card"><span class="no">5</span><h4>Paso 4 · Revise</h4><p>Tres pestañas: el archivo que se va a escribir, los comandos exactos (los marcados <i>hipervisor</i> corren en el host) y cómo queda la tabla de rutas. Lo resaltado es lo que cambia.</p></article>
+                <article class="net-card"><span class="no">6</span><h4>Aplicar</h4><p>La app respalda, programa dentro de la VM la vuelta atrás (el tiempo se cambia en Configuración), escribe, aplica y verifica. Si todo responde, cancela la vuelta atrás y, si la IP fija cae en el rango DHCP de libvirt, la reserva para esa VM.</p></article>
+                <article class="net-card"><span class="no">7</span><h4>Si algo falla</h4><p>No hay que hacer nada: la app dispara la reversión y la VM vuelve a la configuración anterior. Si se perdiera la conexión con la app, la VM vuelve sola cuando venza el temporizador. Como último recurso, la consola de la VM en el hipervisor y el respaldo <code>.bak</code>.</p></article>
+                <article class="net-card read"><span class="no">+</span><h4>Para leer antes de usarla</h4>
+                  <ul>
+                    <li>El manual de la distribución de la VM: en <a href="#" data-dtab="distro">Manuales por distribución</a> y también debajo del nombre de la VM, en el panel de Red.</li>
+                    <li><a data-ref="maniproute">ip-route(8)</a> y <a data-ref="manipaddr">ip-address(8)</a>: en la VM, <code>man 8 ip-route</code>.</li>
+                    <li><a data-ref="rfc1122">RFC 1122</a>: lo que necesita un equipo para estar en una red IP.</li>
+                  </ul>
+                </article>
+              </div>
+              <div class="net-cnav">
+                <button type="button" class="arrow" id="net-mprev" aria-label="Anterior">‹</button>
+                <button type="button" class="arrow" id="net-mnext" aria-label="Siguiente">›</button>
+                <div class="dots" id="net-mdots"></div>
+                <span class="pos" id="net-mpos"></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="net-dpane" id="net-d-distro" role="tabpanel" hidden>
+            <p class="net-lead">Cada distribución configura la red con su propia herramienta y tiene su propio manual oficial. La de la VM abierta en Red aparece resaltada.</p>
+            <div class="net-distros" id="net-distros"></div>
+          </div>
+
+          <div class="net-dpane" id="net-d-bib" role="tabpanel" hidden>
+            <p class="net-lead">De aquí sale lo que dice el panel. Los números entre corchetes de las explicaciones abren esta lista en la fuente citada.</p>
+            <div class="net-bibtools">
+              <input type="search" id="net-bibq" placeholder="Buscar: DHCP, 1122, netplan, libvirt…" aria-label="Buscar en la bibliografía">
+              <button type="button" class="btn-small" id="net-bibopen">Abrir todo</button>
+              <button type="button" class="btn-small" id="net-bibclose">Cerrar todo</button>
+            </div>
+            <div class="net-bibscroll" id="net-bibscroll"><div class="net-bib" id="net-bib"></div></div>
+          </div>
+        </div>
+
+        <div class="form-section net-why">
+          <h3>Por qué está diseñado así</h3>
+          <p class="net-lead">El usuario solo decide lo que nadie más puede decidir: interfaz, modo y los datos. Todo lo demás lo resuelve la aplicación, porque son los mismos pasos que hicimos a mano en la práctica de Debian.</p>
+          <ol>
+            <li><div><b>Lee antes de escribir, y no supone nombres.</b><span>Un solo script, por el agente QEMU, lee <code>/etc/os-release</code>, los servicios activos, <code>ip -br link</code>, <code>/sys/class/net</code>, <code>ip -4 addr</code>, <code>ip r</code> y el DNS. De ahí salen el gestor de red, las tarjetas y la columna Actual.</span></div></li>
+            <li><div><b>Un canal que no se corta.</b><span>La app no entra a la VM por SSH: habla con el hipervisor y este con el agente de la VM por un canal virtio. Cambiar la IP no corta ese canal; solo se cierran las sesiones SSH de los usuarios hacia la IP vieja.</span></div></li>
+            <li><div><b>Conoce la red de libvirt.</b><span>Desde el hipervisor lee el rango DHCP, los leases y las reservas. Así rechaza una IP que ya tiene otra VM y reserva la IP fija para que el DHCP no se la entregue a nadie más.</span></div></li>
+            <li><div><b>Varias tarjetas, varias puertas de enlace.</b><span>Cada tarjeta declara si su puerta de enlace es la principal, de respaldo, solo para ciertas redes o ninguna. La pestaña «Tabla de rutas» muestra cuál gana, y la app advierte si quedan dos rutas por defecto con la misma prioridad.</span></div></li>
+            <li><div><b>Valida en el servidor.</b><span>La misma lógica decide la vista previa y el aplicar: red y broadcast, puerta de enlace en la subred, IP ocupada, otra red (el error de <code>192.168.10.23</code>). Al aplicar vuelve a leer la VM: nunca confía en una lectura vieja.</span></div></li>
+            <li><div><b>No pelea con cloud-init.</b><span>En Ubuntu escribe su propio <code>90-ejecutor-…yaml</code> en vez de editar <code>50-cloud-init.yaml</code>, y apaga la red de cloud-init para que el cambio sobreviva al reinicio.</span></div></li>
+            <li><div><b>Respaldo y reversión automática.</b><span>Antes de escribir respalda y programa con <code>systemd-run</code> la restauración dentro de la VM. Si la verificación pasa, la cancela; si falla, la dispara de inmediato.</span></div></li>
+            <li><div><b>Verifica en el kernel.</b><span>Que <code>netplan apply</code> termine bien no prueba nada. El último paso compara <code>ip addr</code>, <code>ip r</code>, el ping a la puerta de enlace y <code>getent</code> con lo que se pidió.</span></div></li>
+            <li><div><b>Cada explicación dice de dónde sale.</b><span>Los recuadros «Para entender» citan el RFC, el manual de la distribución o la página de manual, y todos remiten a la Bibliografía.</span></div></li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============== COMANDOS ============== -->
+    <section class="tab-content" id="commands-tab" role="tabpanel">
+      <div class="page-head">
+        <div>
+          <h2>Ejecutar comandos</h2>
+          <p>Ejecuta un comando de la lista permitida en el equipo destino, por SSH o en este mismo equipo.</p>
+        </div>
+        <span id="cmd-execution-mode" class="status-badge">Modo: cargando…</span>
+      </div>
+
+      <div class="two-column form-first">
+        <section class="card">
+          <form id="command-form" class="form-group">
+            <fieldset>
+              <legend>Destino</legend>
+              <div class="target-grid">
+                <div class="form-item">
+                  <label for="cmd-execution-mode-select">Modo</label>
+                  <select id="cmd-execution-mode-select">
+                    <option value="remote">Remoto (SSH)</option>
+                    <option value="local">Local</option>
+                  </select>
+                </div>
+                <div class="form-item">
+                  <label for="ssh-host">Host SSH</label>
+                  <input type="text" id="ssh-host" placeholder="192.168.56.101" autocomplete="off" spellcheck="false">
+                </div>
+                <div class="form-item">
+                  <label for="cmd-ssh-port">Puerto</label>
+                  <input type="number" id="cmd-ssh-port" min="1" max="65535" placeholder="22">
+                </div>
+                <div class="form-item">
+                  <label for="cmd-ssh-user">Usuario</label>
+                  <input type="text" id="cmd-ssh-user" placeholder="sshweb" autocomplete="off" spellcheck="false">
+                </div>
+              </div>
+              <small id="command-target-help">El destino se guarda al ejecutar.</small>
+            </fieldset>
+
+            <div class="form-item">
+              <label for="command">Comando</label>
+              <textarea id="command" name="command" rows="3" placeholder="hostname" required spellcheck="false">hostname</textarea>
+              <div class="allowed" id="cmd-allowed" aria-label="Comandos permitidos"></div>
+              <small>Clic en un comando para usarlo. <kbd>Ctrl</kbd> + <kbd>Enter</kbd> ejecuta. No se permiten <code>&amp; | ; &gt; &lt;</code> ni <code>$( )</code>.</small>
+            </div>
+
+            <div class="btn-row">
+              <button type="submit" id="command-submit" class="btn-primary">Ejecutar comando</button>
+            </div>
+          </form>
+
+          <div class="form-item">
+            <div class="card-head"><span class="label">Recientes</span><button type="button" class="btn-ghost" id="cmd-history-clear">Borrar</button></div>
+            <div class="history" id="cmd-history"><small>Aún no hay comandos.</small></div>
+          </div>
+        </section>
+
+        <section class="card" aria-labelledby="result-title">
+          <div class="card-head">
+            <h3 id="result-title">Resultado</h3>
+            <div class="btn-row">
+              <span id="cmd-status" class="status-badge">Listo</span>
+              <button type="button" class="btn-small" id="cmd-copy">Copiar</button>
+            </div>
+          </div>
+          <pre id="cmd-output" class="output-box"><span class="dim">La respuesta del equipo aparecerá aquí.</span></pre>
+        </section>
+      </div>
+    </section>
+
+    <!-- ============== LLAVES SSH ============== -->
+    <section class="tab-content" id="keys-tab" role="tabpanel">
+      <div class="page-head">
+        <div>
+          <h2>Llaves SSH</h2>
+          <p>Pares ED25519 guardados en el servidor de la app. La pública se copia a <code>authorized_keys</code>; la privada solo se descarga con el token de API.</p>
+        </div>
+      </div>
+      <div class="two-column form-first">
+        <section class="card accent">
+          <h3>Generar nueva llave</h3>
+          <form id="key-create-form" class="form-group">
+            <div class="form-item">
+              <label for="key-name">Nombre de la llave</label>
+              <input type="text" id="key-name" required placeholder="usuario1" autocomplete="off" spellcheck="false">
+              <small>Sin extensión. Se crean <code>nombre</code> y <code>nombre.pub</code>.</small>
+            </div>
+            <div class="form-item">
+              <label for="key-user">Usuario SSH</label>
+              <input type="text" id="key-user" required placeholder="sshweb" autocomplete="off" spellcheck="false">
+            </div>
+            <button type="submit" class="btn-primary">Generar llave ED25519</button>
+          </form>
+          <div id="key-create-status" class="status-box" role="status"></div>
+        </section>
+
+        <section class="card">
+          <div class="card-head">
+            <h3>Llaves disponibles</h3>
+            <button type="button" class="btn-ghost" id="keys-refresh">↻ Actualizar</button>
+          </div>
+          <div id="keys-list" class="items-list"><div class="skeleton"></div></div>
+        </section>
+      </div>
+    </section>
+
+    <!-- ============== USUARIOS ============== -->
+    <section class="tab-content" id="users-tab" role="tabpanel">
+      <div class="page-head">
+        <div>
+          <h2>Usuarios locales de Windows</h2>
+          <p>Cuentas del equipo donde corre la app. Crear y eliminar exige el token de API y ejecutar la app como administrador.</p>
+        </div>
+      </div>
+      <div class="two-column form-first">
+        <section class="card accent">
+          <h3>Crear nuevo usuario</h3>
+          <form id="user-create-form" class="form-group">
+            <div class="form-item">
+              <label for="user-name">Nombre de usuario</label>
+              <input type="text" id="user-name" required placeholder="sshweb" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="form-item">
+              <label for="user-pass">Contraseña</label>
+              <input type="password" id="user-pass" required minlength="8" placeholder="Mínimo 8 caracteres" autocomplete="new-password">
+            </div>
+            <div class="form-item">
+              <label for="user-full">Nombre completo <span class="opt">(opcional)</span></label>
+              <input type="text" id="user-full" placeholder="Usuario para SSH">
+            </div>
+            <button type="submit" class="btn-primary">Crear usuario</button>
+          </form>
+          <div id="user-create-status" class="status-box" role="status"></div>
+        </section>
+
+        <section class="card">
+          <div class="card-head">
+            <h3>Cuentas del equipo</h3>
+            <button type="button" class="btn-ghost" id="users-refresh">↻ Actualizar</button>
+          </div>
+          <div id="users-list" class="items-list"><div class="skeleton"></div></div>
+        </section>
+      </div>
+    </section>
+
+    <!-- ============== CONFIGURACIÓN ============== -->
+    <section class="tab-content" id="config-tab" role="tabpanel">
+      <div class="page-head">
+        <div>
+          <h2>Configuración</h2>
+          <p>Se guarda en <code>config.properties</code>. Los cambios del hipervisor y del destino SSH se aplican al instante; los del servidor web, al reiniciar la app.</p>
+        </div>
+      </div>
+
+      <div class="config-grid">
+        <div class="config-section">
+          <h3>Hipervisor (libvirt) <span class="chip dim" id="cfg-hv-state">sin probar</span></h3>
+          <p>Equipo Linux donde viven las VMs. La app entra por SSH y usa <code>virsh</code>.</p>
+          <div class="form-row">
+            <div class="form-item">
+              <label for="cfg-vm-host">Host</label>
+              <input type="text" id="cfg-vm-host" class="config-input" data-key="vm.ssh.host" spellcheck="false">
+            </div>
+            <div class="form-item">
+              <label for="cfg-vm-port">Puerto</label>
+              <input type="number" id="cfg-vm-port" class="config-input" data-key="vm.ssh.port" min="1" max="65535">
+            </div>
+          </div>
+          <div class="form-item">
+            <label for="cfg-vm-user">Usuario</label>
+            <input type="text" id="cfg-vm-user" class="config-input" data-key="vm.ssh.user" spellcheck="false">
+          </div>
+          <div class="form-item">
+            <label for="cfg-vm-key">Llave privada</label>
+            <input type="text" id="cfg-vm-key" class="config-input" data-key="vm.ssh.keyPath" spellcheck="false">
+          </div>
+          <div class="btn-row"><button type="button" class="btn-secondary" id="cfg-hv-test">Probar conexión</button></div>
+        </div>
+
+        <div class="config-section">
+          <h3>Destino de Comandos</h3>
+          <p>Equipo donde se ejecutan los comandos del módulo Comandos.</p>
+          <div class="form-row">
+            <div class="form-item">
+              <label for="cfg-ssh-host">Host</label>
+              <input type="text" id="cfg-ssh-host" class="config-input" data-key="ssh.host" spellcheck="false">
+            </div>
+            <div class="form-item">
+              <label for="cfg-ssh-port">Puerto</label>
+              <input type="number" id="cfg-ssh-port" class="config-input" data-key="ssh.port" min="1" max="65535">
+            </div>
+          </div>
+          <div class="form-item">
+            <label for="cfg-ssh-user">Usuario</label>
+            <input type="text" id="cfg-ssh-user" class="config-input" data-key="ssh.user" spellcheck="false">
+          </div>
+          <div class="form-row">
+            <div class="form-item">
+              <label for="cfg-exec-mode">Modo</label>
+              <select id="cfg-exec-mode" class="config-input" data-key="execution.mode">
+                <option value="remote">Remoto (SSH)</option>
+                <option value="local">Local</option>
+              </select>
+            </div>
+            <div class="form-item">
+              <label for="cfg-shell-type">Shell</label>
+              <select id="cfg-shell-type" class="config-input" data-key="shell.type">
+                <option value="cmd">CMD</option>
+                <option value="powershell">PowerShell</option>
+                <option value="both">Ambos</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="config-section">
+          <h3>Seguridad de Comandos</h3>
+          <p>Solo se ejecutan comandos cuya primera palabra esté en esta lista.</p>
+          <div class="form-item">
+            <label for="cfg-allowed">Comandos permitidos <span class="opt">(separados por coma)</span></label>
+            <textarea id="cfg-allowed" class="config-input" data-key="commands.allowed" rows="2" spellcheck="false"></textarea>
+          </div>
+        </div>
+
+        <div class="config-section">
+          <h3>Red de las VMs</h3>
+          <div class="form-item">
+            <label for="cfg-vm-revert">Reversión automática (segundos)</label>
+            <input type="number" id="cfg-vm-revert" class="config-input" data-key="vm.network.revertSeconds" min="30" max="600" step="10">
+            <small>Si un cambio de red no se confirma en este tiempo, la VM vuelve sola a la configuración anterior. Entre 30 y 600 s.</small>
+          </div>
+        </div>
+
+        <div class="config-section">
+          <h3>Servidor web <span class="chip warn">requiere reiniciar</span></h3>
+          <div class="form-row">
+            <div class="form-item">
+              <label for="cfg-web-addr">Dirección</label>
+              <input type="text" id="cfg-web-addr" class="config-input" data-key="web.addr" spellcheck="false">
+            </div>
+            <div class="form-item">
+              <label for="cfg-web-port">Puerto</label>
+              <input type="number" id="cfg-web-port" class="config-input" data-key="web.port">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="config-actions">
+        <span class="dirty" id="cfg-dirty">Sin cambios</span>
+        <button id="cfg-load-btn" class="btn-secondary" type="button">Descartar y recargar</button>
+        <button id="cfg-save-btn" class="btn-primary" type="button">Guardar cambios</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Avisos flotantes y dialogo reutilizable (reemplazan alert/confirm/prompt) -->
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+  <dialog class="modal" id="modal">
+    <form method="dialog">
+      <h3 id="modal-title"></h3>
+      <div class="body" id="modal-body"></div>
+      <div class="btn-row">
+        <button type="button" class="btn-secondary" id="modal-cancel">Cancelar</button>
+        <button type="submit" class="btn-primary" id="modal-ok" value="ok">Aceptar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/static/app.js?v=24"></script>
+  <script src="/static/network.js?v=24"></script>
+</body>
+</html>

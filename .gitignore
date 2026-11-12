@@ -1,0 +1,19 @@
+# Secretos y configuracion local (usar config.properties.example / .env.example)
+.env
+config.properties
+*.key
+*.pem
+id_*
+known_hosts
+
+# Llaves SSH generadas por la app para cada VM
+keys/
+
+# Binarios
+bin/
+*.exe
+*.test
+
+# Material de presentacion (no es codigo)
+presentacion/
+presentacion - copia/

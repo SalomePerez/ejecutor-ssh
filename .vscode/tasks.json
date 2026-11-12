@@ -1,0 +1,30 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Go: test",
+      "type": "shell",
+      "command": "go",
+      "args": ["test", "./..."],
+      "problemMatcher": "$go",
+      "group": "test"
+    },
+    {
+      "label": "Go: run web server",
+      "type": "shell",
+      "command": "go",
+      "args": ["run", "."],
+      "isBackground": true,
+      "problemMatcher": {
+        "pattern": {
+          "regexp": ".*"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "servidor web escuchando",
+          "endsPattern": "servidor web escuchando"
+        }
+      }
+    }
+  ]
+}
