@@ -547,7 +547,7 @@ $('#users-list').addEventListener('click', async e => {
 const DISTRO_NAMES = { 'ubuntu-24.04': 'Ubuntu 24.04', 'debian-12': 'Debian 12', 'debian-13': 'Debian 13', 'fedora-42': 'Fedora 42', 'arch': 'Arch Linux', 'rocky-9': 'Rocky 9' };
 // Usuario que se sugiere al crear la VM, como el de la imagen oficial de cada distribucion.
 const DISTRO_USERS = { 'ubuntu-24.04': 'ubuntu', 'debian-12': 'debian', 'debian-13': 'debian', 'fedora-42': 'fedora', 'arch': 'arch', 'rocky-9': 'rocky' };
-const NET_MODES = { nat: 'NAT', route: 'Enrutada', isolated: 'Aislada', bridge: 'Puente', open: 'Abierta' };
+const NET_MODES = { nat: 'NAT', route: 'Enrutada', isolated: 'Aislada', bridge: 'Puente', open: 'Abierta', internal: 'Interna', hostonly: 'Solo anfitrión' };
 let vnetCache = [];
 const VM_NAME_RE = /^[A-Za-z0-9-]+$/;
 let vmCache = [];
@@ -562,12 +562,13 @@ function vmStateLabel(status) {
   return ['other', status || 'desconocido'];
 }
 
-// Comando para entrar a la VM desde este equipo: las VMs estan en la red NAT
-// de libvirt, que solo se alcanza saltando por el hipervisor (-J).
+// Comando para entrar a la VM desde este equipo. Con libvirt las VMs estan
+// en la red NAT del hipervisor y se salta por el (-J); con VirtualBox la IP
+// se alcanza directo (puente, solo anfitrion) desde este mismo equipo.
 function sshHint(vm) {
   if (!vm.ip) return '';
   const c = configCache;
-  const jump = c['vm.ssh.host'] ? ` -J ${c['vm.ssh.user'] || 'root'}@${c['vm.ssh.host']}${c['vm.ssh.port'] && c['vm.ssh.port'] !== '22' ? ':' + c['vm.ssh.port'] : ''}` : '';
+  const jump = c['vm.provider'] === 'libvirt' && c['vm.ssh.host'] ? ` -J ${c['vm.ssh.user'] || 'root'}@${c['vm.ssh.host']}${c['vm.ssh.port'] && c['vm.ssh.port'] !== '22' ? ':' + c['vm.ssh.port'] : ''}` : '';
   // Ruta absoluta (la manda el servidor) y entre comillas: la carpeta del
   // proyecto tiene espacios y el comando se pega desde cualquier carpeta.
   const keys = (c['keys.storePath'] || './keys').replace(/^\.\//, '');
@@ -599,15 +600,15 @@ function renderVMs() {
         <span>${vm.diskGB ? vm.diskGB + ' GB' : '— GB'}</span>
         ${running ? `<span>IP <b class="mono">${vm.ip ? esc(vm.ip) : 'esperando…'}</b></span>` : ''}
       </div>
-      ${EXPERIMENTAL && (vm.networks || []).length ? `<div class="item-meta">${vm.networks.map((n, i) => `<span class="chip ${i ? 'dim' : ''}" title="MAC ${esc(n.mac)}">${i ? '' : '★ '}${esc(n.network)}</span>`).join('')}</div>` : ''}
+      ${(vm.networks || []).length ? `<div class="item-meta">${vm.networks.map((n, i) => `<span class="chip ${i ? 'dim' : ''}" title="MAC ${esc(n.mac)}">${i ? '' : '★ '}${esc(n.network)}</span>`).join('')}</div>` : ''}
       ${hint ? `<div class="vm-ssh"><code title="Desde este equipo, saltando por el hipervisor">${esc(hint)}</code><button type="button" class="btn-small" data-act="copyssh">Copiar</button></div>` : ''}
       <div class="item-actions">
         ${running
           ? '<button type="button" class="btn-small" data-act="stop">Apagar</button>'
           : '<button type="button" class="btn-small go" data-act="start">Encender</button>'}
-        <button type="button" class="btn-small" data-act="net"${running ? '' : ' disabled title="Encienda la VM: la red se lee por su agente QEMU"'}>Red</button>
+        <button type="button" class="btn-small" data-act="net"${running ? '' : ' disabled title="Encienda la VM: la red se lee por el canal del hipervisor"'}>Red</button>
         <button type="button" class="btn-small" data-act="disks" aria-expanded="false">Discos</button>
-        ${EXPERIMENTAL ? '<button type="button" class="btn-small" data-act="nics" aria-expanded="false">Tarjetas</button>' : ''}
+        <button type="button" class="btn-small" data-act="nics" aria-expanded="false">Tarjetas</button>
         <button type="button" class="btn-small" data-act="edit" aria-expanded="false">Editar</button>
         <span class="sep"></span>
         <button type="button" class="btn-small btn-danger" data-act="delete">Eliminar</button>
@@ -749,7 +750,7 @@ function toggleNics(card, vm, btn) {
     </div>`).join('') : '<small>La VM no tiene tarjetas de red.</small>'}</div>
     <div class="nic-add"><select aria-label="Red para la nueva tarjeta">${vnetCache.map(n => `<option value="${esc(n.name)}">${esc(n.name)} · ${esc(NET_MODES[n.mode] || n.mode)} · ${esc(n.subnet || '')}</option>`).join('')}</select>
       <button type="button" class="btn-small go" data-act="nic-add">+ Agregar tarjeta</button></div>
-    <small>${vm.status === 'running' ? 'La tarjeta aparece al instante en la VM (conexión en caliente).' : 'La tarjeta aparecerá al encender la VM.'} Configure su IP en <b>Red de una VM</b>.</small>`;
+    <small>${vm.status === 'running' ? '<b>Apague la VM</b> para agregar o quitar tarjetas: VirtualBox no lo permite con la VM encendida.' : 'La tarjeta aparecerá al encender la VM.'} Configure su IP en <b>Red</b>.</small>`;
   panel.hidden = false;
   if (!vnetCache.length) loadVirtualNetworks().then(() => { if (!panel.hidden) { panel.hidden = true; toggleNics(card, vm, btn); } });
 }
@@ -769,7 +770,7 @@ async function detachNic(vm, mac, network) {
   const yes = await ask({
     title: 'Quitar tarjeta de red',
     html: `<p>Se quitará de <b>${esc(vm.name)}</b> la tarjeta <b>${esc(mac)}</b> (red «${esc(network)}»).</p>` +
-      (only ? '<p><b>Es su única tarjeta:</b> la VM quedará sin red. El agente QEMU sigue funcionando porque no usa la red.</p>' : ''),
+      (only ? '<p><b>Es su única tarjeta:</b> la VM quedará sin red. El canal del hipervisor (Guest Additions) sigue funcionando porque no usa la red.</p>' : ''),
     ok: 'Quitar', danger: true
   });
   if (!yes) return;

@@ -158,10 +158,13 @@
   function renderHead() {
     const st = S.state;
     $('#net-title').textContent = 'Red de ' + S.vm;
-    $('#net-detect').innerHTML = 'Detectado por el agente QEMU: ' +
+    const channel = st.hypervisor === 'VirtualBox' ? 'las Guest Additions de VirtualBox' : 'el agente QEMU';
+    $('#net-detect').innerHTML = 'Detectado por ' + channel + ': ' +
       `<span class="net-chip">${esc(st.os || 'sistema desconocido')}</span><span class="net-chip">${esc(st.managerName || 'gestor no reconocido')}</span>` +
-      (st.forwarding ? '<span class="net-chip warm">reenvío IPv4 activo</span>' : '') +
-      (st.cloudInit ? '<span class="net-chip dim">cloud-init</span>' : '');
+      (st.forwarding ? '<span class="net-chip warm">reenvío IPv4 activo (router)</span>' : '<span class="net-chip dim">sin reenvío IPv4</span>') +
+      (st.cloudInit ? '<span class="net-chip dim">cloud-init</span>' : '') +
+      ` <button type="button" class="btn-small" id="net-fwd" title="net.ipv4.ip_forward: la VM pasa paquetes entre sus interfaces">${st.forwarding ? 'Desactivar reenvío' : 'Activar reenvío (router)'}</button>`;
+    $('#net-fwd').onclick = toggleForwarding;
     $('#net-distline').innerHTML = 'Manual de ' + esc(distro().name) + ': ' + distroRefs();
     $('#net-raw').innerHTML = st.raw.map(c => `<span class="k2">$ ${esc(c.cmd)}</span>\n<span class="o">${esc(c.output)}</span>`).join('\n');
   }
@@ -292,6 +295,29 @@
   }
 
   // ---------- aplicar ----------
+  // Reenvio IPv4: lo que convierte a la VM en router entre sus redes.
+  async function toggleForwarding() {
+    const btn = $('#net-fwd');
+    const enabled = !S.state.forwarding;
+    btn.disabled = true;
+    btn.textContent = enabled ? 'Activando…' : 'Desactivando…';
+    let data;
+    try {
+      const r = await fetch('/api/vms/' + encodeURIComponent(S.vm) + '/network/forwarding', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }) });
+      data = await r.json();
+    } catch (err) {
+      data = { success: false, error: err.message };
+    }
+    const lines = ((data.data && data.data.steps) || []).flatMap(s => s.lines).map(l => '$ ' + l.cmd + (l.output ? '
+' + l.output : '')).join('
+');
+    if (window.toast) window.toast(data.success ? 'success' : 'error', (data.message || data.error || 'error') + (lines ? '
+
+' + lines : ''), data.success ? 8000 : 0);
+    if (data.data && data.data.state) { S.state = data.data.state; renderAll(); }
+    else { btn.disabled = false; renderHead(); }
+  }
+
   async function apply() {
     if (!S.plan || !S.plan.valid || S.busy) return;
     S.busy = true;
@@ -379,7 +405,7 @@
       $('#net-body').hidden = true;
       $('#net-run').hidden = true;
       $('#net-loading').hidden = false;
-      $('#net-loading').innerHTML = '<div class="net-wait"><span class="spinner"></span> Leyendo la red de la VM por el agente QEMU…</div>';
+      $('#net-loading').innerHTML = '<div class="net-wait"><span class="spinner"></span> Leyendo la red de la VM por el canal del hipervisor…</div>';
       $('#net-panel').scrollIntoView({ block: 'start', behavior: 'smooth' });
     }
     if (S.vm !== name) return;

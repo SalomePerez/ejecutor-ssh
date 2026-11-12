@@ -45,13 +45,13 @@ type networkReadResponse struct {
 	RevertSeconds int          `json:"revertSeconds"`
 }
 
-// networkRoute reconoce /api/vms/{nombre}/network[/plan|/apply].
+// networkRoute reconoce /api/vms/{nombre}/network[/plan|/apply|/forwarding].
 func networkRoute(path string) (name, action string, ok bool) {
 	rest := strings.TrimPrefix(path, "/api/vms/")
 	if rest == path {
 		return "", "", false
 	}
-	for _, a := range []string{"/network/plan", "/network/apply", "/network"} {
+	for _, a := range []string{"/network/plan", "/network/apply", "/network/forwarding", "/network"} {
 		if strings.HasSuffix(rest, a) {
 			return strings.TrimSuffix(rest, a), strings.TrimPrefix(a, "/network"), true
 		}
@@ -102,6 +102,30 @@ func (h *VMHandler) serveNetwork(w http.ResponseWriter, r *http.Request, name, a
 			writeVMResponse(w, http.StatusConflict, vmResponse{Success: false, Error: err.Error(), Data: planErr.Plan})
 			return
 		}
+		if err != nil {
+			writeVMResponse(w, http.StatusBadGateway, vmResponse{Success: false, Error: err.Error()})
+			return
+		}
+		if result.State != nil {
+			h.net.put(name, result.State)
+		}
+		writeVMResponse(w, http.StatusOK, vmResponse{Success: result.OK, Message: result.Message, Data: result})
+
+	case action == "/forwarding" && r.Method == http.MethodPost:
+		fp, ok := h.provider.(vm.ForwardingProvider)
+		if !ok {
+			writeVMResponse(w, http.StatusNotImplemented, vmResponse{Success: false, Error: "el proveedor no permite cambiar el reenvío IPv4"})
+			return
+		}
+		var req struct {
+			Enabled bool `json:"enabled"`
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, 256)
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeVMResponse(w, http.StatusBadRequest, vmResponse{Success: false, Error: "JSON inválido"})
+			return
+		}
+		result, err := fp.SetForwarding(name, req.Enabled)
 		if err != nil {
 			writeVMResponse(w, http.StatusBadGateway, vmResponse{Success: false, Error: err.Error()})
 			return

@@ -226,6 +226,8 @@ func (cfg *Config) ToJSON() ([]byte, error) {
 		"ssh.timeout":              cfg.SSHTimeout,
 		"request.maxSize":          cfg.RequestMaxSize,
 		"commands.allowed":         strings.Join(cfg.AllowedCommands, ","),
+		"vm.provider":              cfg.VMProvider,
+		"vbox.guest.user":          cfg.VBoxGuestUser,
 		"vm.ssh.host":              cfg.VMSSHHost,
 		"vm.ssh.port":              cfg.VMSSHPort,
 		"vm.ssh.user":              cfg.VMSSHUser,

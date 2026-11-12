@@ -40,7 +40,7 @@
         <h2>Máquinas virtuales</h2>
         <div class="vm-subtabs" role="tablist" aria-label="Módulo de máquinas virtuales">
           <button type="button" role="tab" data-vmtab="manage" aria-selected="true">Máquinas</button>
-          <button type="button" role="tab" data-vmtab="nets" aria-selected="false" class="exp-only">Redes virtuales</button>
+          <button type="button" role="tab" data-vmtab="nets" aria-selected="false">Redes virtuales</button>
           <button type="button" role="tab" data-vmtab="net" aria-selected="false">Red</button>
           <button type="button" role="tab" data-vmtab="docs" aria-selected="false">Documentación</button>
         </div>
@@ -151,11 +151,11 @@
 
 
       <!-- ---------- Sub-pestaña: Redes virtuales (switches de libvirt) ---------- -->
-      <div class="vm-pane exp-only" id="vm-pane-nets" role="tabpanel" hidden>
+      <div class="vm-pane" id="vm-pane-nets" role="tabpanel" hidden>
         <div class="two-column">
           <section class="card">
             <div class="card-head">
-              <div><h3>Redes del hipervisor</h3><div class="card-head sub">Cada red es un switch virtual (un bridge <code>virbrN</code>) dentro del hipervisor.</div></div>
+              <div><h3>Redes del hipervisor</h3><div class="card-head sub">Cada red es un switch virtual de VirtualBox: NAT, puente a la red física, solo anfitrión, interna o red NAT.</div></div>
               <button type="button" class="btn-secondary" id="vnet-refresh">↻ Actualizar</button>
             </div>
             <div id="vnet-list" class="items-list"><div class="skeleton"></div></div>
@@ -172,11 +172,9 @@
                 <span class="label">Modo</span>
                 <div class="mode-cards" role="radiogroup" aria-label="Modo de la red">
                   <label class="mode-card"><input type="radio" name="vnet-mode" value="isolated" checked>
-                    <b>Aislada</b><span>Las VMs se ven entre sí y con el hipervisor. Sin internet. Para prácticas de red cerradas.</span></label>
+                    <b>Interna</b><span>Switch solo entre VMs: sin anfitrión ni internet. Para prácticas de enrutamiento (una VM hace de router).</span></label>
                   <label class="mode-card"><input type="radio" name="vnet-mode" value="nat">
-                    <b>NAT</b><span>Salen a internet a través del hipervisor, como <code>default</code>. Desde fuera no se llega a ellas.</span></label>
-                  <label class="mode-card"><input type="radio" name="vnet-mode" value="route">
-                    <b>Enrutada</b><span>Sin traducir direcciones: otros equipos llegan a las VMs si tienen una ruta hacia esta red.</span></label>
+                    <b>Red NAT</b><span>Varias VMs comparten un NAT: se ven entre sí y salen a internet. Desde fuera no se llega a ellas.</span></label>
                 </div>
               </div>
               <div class="form-row">
@@ -203,7 +201,7 @@
           <aside class="net-vms" aria-label="Máquinas virtuales">
             <h3>Máquinas virtuales</h3>
             <div id="net-vmlist" class="net-vmlist"><p class="placeholder">Cargando…</p></div>
-            <p class="net-vms-hint">La red se lee por el agente QEMU de la VM: solo se pueden abrir las que están encendidas.</p>
+            <p class="net-vms-hint">La red se lee por el canal del hipervisor (Guest Additions en VirtualBox), que no usa la red de la VM: solo se pueden abrir las que están encendidas.</p>
           </aside>
 
           <section class="net-panel" id="net-panel" aria-labelledby="net-title">

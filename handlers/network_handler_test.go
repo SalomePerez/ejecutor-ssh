@@ -52,9 +52,10 @@ func doJSON(h http.Handler, method, path string, body interface{}) (*httptest.Re
 
 func TestNetworkRoute(t *testing.T) {
 	cases := map[string][2]string{
-		"/api/vms/lab-01/network":       {"lab-01", ""},
-		"/api/vms/lab-01/network/plan":  {"lab-01", "/plan"},
-		"/api/vms/lab-01/network/apply": {"lab-01", "/apply"},
+		"/api/vms/lab-01/network":            {"lab-01", ""},
+		"/api/vms/lab-01/network/plan":       {"lab-01", "/plan"},
+		"/api/vms/lab-01/network/apply":      {"lab-01", "/apply"},
+		"/api/vms/lab-01/network/forwarding": {"lab-01", "/forwarding"},
 	}
 	for path, want := range cases {
 		name, action, ok := networkRoute(path)

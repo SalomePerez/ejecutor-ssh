@@ -113,3 +113,43 @@ func TestGuestExecParsesExitMarker(t *testing.T) {
 		t.Fatalf("%+v", res)
 	}
 }
+
+func TestNicArgs(t *testing.T) {
+	cases := map[string]string{
+		"nat":                     "--nic2 nat",
+		"default":                 "--nic2 nat",
+		"puente:Intel Wi-Fi":      "--nic2 bridged --bridgeadapter2 Intel Wi-Fi",
+		"interna:lan-a":           "--nic2 intnet --intnet2 lan-a",
+		"solo-anfitrion:VBox Net": "--nic2 hostonly --hostonlyadapter2 VBox Net",
+		"red-nat:labnat":          "--nic2 natnetwork --nat-network2 labnat",
+	}
+	for network, want := range cases {
+		args, err := nicArgs(2, network)
+		if err != nil || strings.Join(args, " ") != want {
+			t.Errorf("%s: %v %v", network, args, err)
+		}
+	}
+	for _, bad := range []string{"interna:", "interna:a b", "otra:x", "algo"} {
+		if _, err := nicArgs(2, bad); err == nil {
+			t.Errorf("%q deberia rechazarse", bad)
+		}
+	}
+}
+
+func TestAttachNicNeedsStoppedVMAndUsesFreeSlot(t *testing.T) {
+	running := &fakeVBox{responses: map[string]string{"showvminfo": debianInfo}}
+	if err := NewVBoxProvider(running, nil).AttachNic("debian-red", "interna:lan-b"); err == nil || !strings.Contains(err.Error(), "apague") {
+		t.Fatalf("con la VM encendida debe pedir apagarla: %v", err)
+	}
+	stopped := &fakeVBox{responses: map[string]string{
+		"showvminfo": strings.Replace(debianInfo, `VMState="running"`, `VMState="poweroff"`, 1),
+		"modifyvm":   "",
+	}}
+	if err := NewVBoxProvider(stopped, nil).AttachNic("debian-red", "interna:lan-b"); err != nil {
+		t.Fatal(err)
+	}
+	last := strings.Join(stopped.calls[len(stopped.calls)-1], " ")
+	if !strings.HasPrefix(last, "modifyvm debian-red --nic3 intnet --intnet3 lan-b") {
+		t.Fatalf("debe usar la tarjeta 3 (1 y 2 ocupadas): %s", last)
+	}
+}

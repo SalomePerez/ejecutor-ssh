@@ -44,3 +44,23 @@ func TestVBoxLiveGuestExec(t *testing.T) {
 		t.Error("ls /nada deberia fallar: el codigo de salida no se esta propagando")
 	}
 }
+
+func TestVBoxLiveNetworks(t *testing.T) {
+	if os.Getenv("VBOX_LIVE") == "" {
+		t.Skip("define VBOX_LIVE=1")
+	}
+	p := NewVBoxProvider(VBoxManageRunner{Path: `C:\Program Files\Oracle\VirtualBox\VBoxManage.exe`}, nil)
+	nets, err := p.ListNetworks()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range nets {
+		t.Logf("%-55s %-9s subred=%-18s gw=%-14s dhcp=%s-%s vms=%v", n.Name, n.Mode, n.Subnet, n.HostIP, n.DHCPStart, n.DHCPEnd, n.VMs)
+	}
+	info, err := p.HostInfo()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("anfitrion: %+v", *info)
+	t.Logf("red de debian-red: %+v", p.hostNetworks("debian-red"))
+}
