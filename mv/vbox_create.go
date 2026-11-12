@@ -1,6 +1,8 @@
 package vm
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -188,6 +190,22 @@ func (p *VBoxProvider) Create(spec CreateSpec) (*VM, error) {
 			modify = append(modify, "--nat-localhostreachable1", "on")
 		}
 	}
+	// Canal 3: tarjeta de gestion en solo anfitrion, con una MAC conocida
+	// para que cloud-init la encuentre y la configure por DHCP.
+	mgmtMAC := ""
+	if spec.Management {
+		if len(networks) >= 8 {
+			return fail("interfaz de gestión", fmt.Errorf("no queda una tarjeta libre (máximo 8)"))
+		}
+		adapter, err := p.firstHostOnly()
+		if err != nil {
+			return fail("interfaz de gestión", err)
+		}
+		slot := strconv.Itoa(len(networks) + 1)
+		mgmtMAC = randomVBoxMAC()
+		modify = append(modify, "--nic"+slot, "hostonly", "--hostonlyadapter"+slot, adapter,
+			"--nictype"+slot, "virtio", "--cableconnected"+slot, "on", "--macaddress"+slot, strings.ReplaceAll(mgmtMAC, ":", ""))
+	}
 	if _, err := p.vbox.Run(modify...); err != nil {
 		return fail("modifyvm", err)
 	}
@@ -257,7 +275,7 @@ func (p *VBoxProvider) Create(spec CreateSpec) (*VM, error) {
 		created = append(created, Disk{Name: diskName, Path: path, SizeGB: d.SizeGB, Shareable: d.Shareable})
 	}
 
-	if err := p.writeVBoxSeed(spec.Name, creds, spec.SSHPublicKey); err != nil {
+	if err := p.writeVBoxSeed(spec.Name, creds, spec.SSHPublicKey, mgmtMAC); err != nil {
 		return fail("configuración de cloud-init", err)
 	}
 	seed := "ds=nocloud;s=" + strings.TrimRight(p.opts.SeedURL, "/") + "/cloud-init/" + spec.Name + "/"
@@ -280,10 +298,19 @@ func (p *VBoxProvider) Create(spec CreateSpec) (*VM, error) {
 // llave SSH) puede usar sudo con su contrasena; e instala las Guest
 // Additions desde el ISO conectado. Sin compilador no se construyen los
 // modulos propios, pero el kernel ya trae vboxguest y el servicio funciona.
-func vboxUserData(name string, creds GuestCredentials, publicKey string) string {
+// Si mgmtMAC no esta vacia, primero configura la interfaz de gestion (canal 3)
+// por DHCP, antes de instalar las Guest Additions, que tardan mas.
+func vboxUserData(name string, creds GuestCredentials, publicKey, mgmtMAC string) string {
 	key := ""
 	if k := strings.TrimSpace(publicKey); k != "" {
 		key = "\n    ssh_authorized_keys:\n      - " + strconv.Quote(k)
+	}
+	files, mgmtCmd := "", ""
+	if mgmtMAC != "" {
+		// El script va en base64 para no pelear con las comillas de YAML.
+		files = "write_files:\n  - path: " + mgmtScriptPath + "\n    permissions: '0755'\n    encoding: b64\n    content: " +
+			base64.StdEncoding.EncodeToString([]byte(mgmtScript(mgmtMAC))) + "\n"
+		mgmtCmd = "  - [sh, " + mgmtScriptPath + "]\n"
 	}
 	return fmt.Sprintf(`#cloud-config
 hostname: %s
@@ -295,17 +322,89 @@ users:
     lock_passwd: false
     plain_text_passwd: %s%s
 ssh_pwauth: false
-package_update: true
+%spackage_update: true
 packages:
   - bzip2
   - tar
 runcmd:
-  - [sh, -c, "mkdir -p /mnt/ga && (mount -o ro /dev/sr0 /mnt/ga || mount -o ro /dev/cdrom /mnt/ga) && sh /mnt/ga/VBoxLinuxAdditions.run --nox11; umount /mnt/ga; true"]
+%s  - [sh, -c, "mkdir -p /mnt/ga && (mount -o ro /dev/sr0 /mnt/ga || mount -o ro /dev/cdrom /mnt/ga) && sh /mnt/ga/VBoxLinuxAdditions.run --nox11; umount /mnt/ga; true"]
   - [sh, -c, "systemctl enable --now vboxadd-service || true"]
-`, name, strconv.Quote(creds.User), strconv.Quote(creds.Password), key)
+`, name, strconv.Quote(creds.User), strconv.Quote(creds.Password), key, files, mgmtCmd)
 }
 
-func (p *VBoxProvider) writeVBoxSeed(name string, creds GuestCredentials, publicKey string) error {
+const mgmtScriptPath = "/usr/local/sbin/ejecutor-gestion.sh"
+
+// mgmtScript configura la interfaz de gestion (la de esa MAC) por DHCP, sin
+// ruta por defecto ni DNS, con el gestor de red que tenga la distribucion:
+// Netplan (Debian/Ubuntu de nube), NetworkManager (Fedora), systemd-networkd
+// (Arch) o ifupdown.
+func mgmtScript(mac string) string {
+	return `#!/bin/sh
+# Escrito por Ejecutor SSH: interfaz de gestion (canal 3) por DHCP, sin ruta por defecto.
+MAC=` + strings.ToLower(mac) + `
+IF=""
+for d in /sys/class/net/*; do [ "$(cat "$d/address" 2>/dev/null)" = "$MAC" ] && IF=$(basename "$d"); done
+[ -n "$IF" ] || { echo "no se encontro la tarjeta $MAC"; exit 1; }
+if command -v netplan >/dev/null 2>&1 && [ -d /etc/netplan ]; then
+  cat > /etc/netplan/91-ejecutor-gestion.yaml <<EOF
+network:
+  version: 2
+  ethernets:
+    $IF:
+      dhcp4: true
+      dhcp4-overrides:
+        use-routes: false
+        use-dns: false
+EOF
+  chmod 600 /etc/netplan/91-ejecutor-gestion.yaml
+  netplan apply
+elif command -v nmcli >/dev/null 2>&1 && systemctl is-active --quiet NetworkManager; then
+  nmcli con delete gestion >/dev/null 2>&1
+  nmcli con add type ethernet ifname "$IF" con-name gestion ipv4.method auto ipv4.never-default yes ipv4.ignore-auto-dns yes ipv6.method ignore
+  nmcli con up gestion
+elif [ -d /etc/systemd/network ]; then
+  cat > /etc/systemd/network/91-ejecutor-gestion.network <<EOF
+[Match]
+MACAddress=$MAC
+
+[Network]
+DHCP=ipv4
+
+[DHCPv4]
+UseRoutes=false
+UseDNS=false
+EOF
+  systemctl enable systemd-networkd
+  systemctl restart systemd-networkd
+elif [ -f /etc/network/interfaces ]; then
+  printf '\nauto %s\niface %s inet dhcp\n' "$IF" "$IF" >> /etc/network/interfaces
+  ifup "$IF"
+fi
+`
+}
+
+// firstHostOnly devuelve el primer adaptador "solo anfitrion" de VirtualBox.
+func (p *VBoxProvider) firstHostOnly() (string, error) {
+	out, err := p.vbox.Run("list", "hostonlyifs")
+	if err != nil {
+		return "", err
+	}
+	for _, b := range parseBlocks(string(out), "Name") {
+		if b["Name"] != "" {
+			return b["Name"], nil
+		}
+	}
+	return "", fmt.Errorf("VirtualBox no tiene una red «solo anfitrión»: créela en Archivo → Herramientas → Administrador de red")
+}
+
+// randomVBoxMAC genera una MAC con el prefijo de VirtualBox (08:00:27).
+func randomVBoxMAC() string {
+	b := make([]byte, 3)
+	_, _ = rand.Read(b)
+	return fmt.Sprintf("08:00:27:%02x:%02x:%02x", b[0], b[1], b[2])
+}
+
+func (p *VBoxProvider) writeVBoxSeed(name string, creds GuestCredentials, publicKey, mgmtMAC string) error {
 	dir := filepath.Join(p.opts.SeedsDir, name)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
@@ -314,7 +413,7 @@ func (p *VBoxProvider) writeVBoxSeed(name string, creds GuestCredentials, public
 	if err := os.WriteFile(filepath.Join(dir, "meta-data"), []byte(meta), 0o600); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(dir, "user-data"), []byte(vboxUserData(name, creds, publicKey)), 0o600)
+	return os.WriteFile(filepath.Join(dir, "user-data"), []byte(vboxUserData(name, creds, publicKey, mgmtMAC)), 0o600)
 }
 
 // SeedFile devuelve un archivo de cloud-init de una VM (meta-data,

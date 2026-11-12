@@ -109,3 +109,28 @@ func TestVBoxCreateRejects(t *testing.T) {
 		}
 	}
 }
+
+func TestVBoxCreateWithManagement(t *testing.T) {
+	r := createResponses()
+	r["list hostonlyifs"] = "Name:            VirtualBox Host-Only Ethernet Adapter\nIPAddress:       192.168.56.1\n"
+	f := &fakeVBox{responses: r}
+	p, dir := newCreateProvider(t, f)
+	_, err := p.Create(CreateSpec{Name: "lab-a", Distro: "debian-13", CPU: 1, MemoryMB: 1024, DiskGB: 2,
+		ImagePath: filepath.Join(dir, "plantillas", "debian-13.vdi"), Management: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var modify string
+	for _, c := range f.calls {
+		if c[0] == "modifyvm" {
+			modify = strings.Join(c, " ")
+		}
+	}
+	if !strings.Contains(modify, "--nic2 hostonly --hostonlyadapter2 VirtualBox Host-Only Ethernet Adapter") || !strings.Contains(modify, "--macaddress2 080027") {
+		t.Fatalf("falta la tarjeta de gestion: %s", modify)
+	}
+	userData, _ := p.SeedFile("lab-a", "user-data")
+	if !strings.Contains(string(userData), "write_files:") || !strings.Contains(string(userData), "[sh, "+mgmtScriptPath+"]") {
+		t.Fatalf("user-data sin la interfaz de gestion:\n%s", userData)
+	}
+}

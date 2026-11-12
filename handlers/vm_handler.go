@@ -31,6 +31,8 @@ type createVMRequest struct {
 	Disks     []diskRequest `json:"disks,omitempty"`
 	Networks  []string      `json:"networks,omitempty"`
 	Emulated  bool          `json:"emulated,omitempty"`
+	// Management agrega la interfaz de gestion (canal 3).
+	Management bool `json:"management,omitempty"`
 }
 
 type diskRequest struct {
@@ -224,6 +226,7 @@ func (h *VMHandler) createVM(w http.ResponseWriter, r *http.Request) {
 		Disks:        disks,
 		Networks:     req.Networks,
 		Emulated:     req.Emulated,
+		Management:   req.Management,
 	})
 	if err != nil {
 		_ = sshkeys.DeleteKeyPair(h.config.KeysStorePath, keyName)

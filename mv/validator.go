@@ -19,7 +19,7 @@ func ValidateName(name string) error {
 
 func ValidateDistro(distro string) error {
 	switch distro {
-	case "ubuntu-24.04", "debian-12", "debian-13", "fedora-42", "arch", "rocky-9":
+	case "ubuntu-24.04", "debian-12", "debian-13", "fedora-42", "fedora-45", "arch", "rocky-9":
 		return nil
 	default:
 		return fmt.Errorf("distribución no soportada")

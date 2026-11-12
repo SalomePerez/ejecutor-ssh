@@ -85,16 +85,21 @@
                   <option value="debian-12">Debian 12</option>
                   <option value="debian-13">Debian 13</option>
                   <option value="fedora-42">Fedora 42</option>
+                  <option value="fedora-45">Fedora 45</option>
                   <option value="arch">Arch Linux</option>
                   <option value="rocky-9">Rocky 9</option>
                 </select>
                 <small id="vm-distro-help">Se elige sola según la plantilla.</small>
               </div>
               <div class="form-item">
+                <label><input type="checkbox" id="vm-management"> Interfaz de gestión (canal 3)</label>
+                <small>Agrega una tarjeta en la red <b>solo anfitrión</b>, configurada por DHCP y sin ruta por defecto. La app puede administrar la red por SSH a esa tarjeta, que nunca se modifica.</small>
+              </div>
+              <div class="form-item exp-only">
                 <label><input type="checkbox" id="vm-emulated"> Emulación sin KVM (lenta)</label>
                 <small id="vm-emulated-help">Para sistemas que tumban el hipervisor con VT-x anidado. El primer arranque tarda varios minutos más.</small>
               </div>
-              <fieldset class="exp-only">
+              <fieldset>
                 <legend>Tarjetas de red</legend>
                 <div class="form-item">
                   <label for="vm-net-main">Tarjeta principal</label>

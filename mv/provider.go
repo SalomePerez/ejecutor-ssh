@@ -35,6 +35,9 @@ type CreateSpec struct {
 	// Emulated crea la VM con emulacion de QEMU (TCG) en vez de KVM: mucho
 	// mas lenta, pero no usa VT-x anidado (ver emulatedFlags).
 	Emulated bool
+	// Management agrega una tarjeta de gestion (solo anfitrion, por DHCP)
+	// para el canal 3. Solo VirtualBox.
+	Management bool
 }
 
 type DiskSpec struct {

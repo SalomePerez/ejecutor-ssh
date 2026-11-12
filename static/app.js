@@ -13,7 +13,7 @@ const EXPERIMENTAL = new URLSearchParams(location.search).has('experimental');
 document.documentElement.classList.toggle('experimental', EXPERIMENTAL);
 // Plantillas verificadas de punta a punta (crear, primer arranque, agente, Red).
 // Debian 12 solo emulada: con KVM tumba el hipervisor (ver EMULATED_DISTROS).
-const VERIFIED_TEMPLATE = /ubuntu|debian-1[23]/i;
+const VERIFIED_TEMPLATE = /ubuntu|debian-1[23]|fedora|arch/i;
 
 // ============== UTILIDADES ==============
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -544,9 +544,9 @@ $('#users-list').addEventListener('click', async e => {
 });
 
 // ============== MÁQUINAS VIRTUALES ==============
-const DISTRO_NAMES = { 'ubuntu-24.04': 'Ubuntu 24.04', 'debian-12': 'Debian 12', 'debian-13': 'Debian 13', 'fedora-42': 'Fedora 42', 'arch': 'Arch Linux', 'rocky-9': 'Rocky 9' };
+const DISTRO_NAMES = { 'ubuntu-24.04': 'Ubuntu 24.04', 'debian-12': 'Debian 12', 'debian-13': 'Debian 13', 'fedora-42': 'Fedora 42', 'fedora-45': 'Fedora 45', 'arch': 'Arch Linux', 'rocky-9': 'Rocky 9' };
 // Usuario que se sugiere al crear la VM, como el de la imagen oficial de cada distribucion.
-const DISTRO_USERS = { 'ubuntu-24.04': 'ubuntu', 'debian-12': 'debian', 'debian-13': 'debian', 'fedora-42': 'fedora', 'arch': 'arch', 'rocky-9': 'rocky' };
+const DISTRO_USERS = { 'ubuntu-24.04': 'ubuntu', 'debian-12': 'debian', 'debian-13': 'debian', 'fedora-42': 'fedora', 'fedora-45': 'fedora', 'arch': 'arch', 'rocky-9': 'rocky' };
 const NET_MODES = { nat: 'NAT', route: 'Enrutada', isolated: 'Aislada', bridge: 'Puente', open: 'Abierta', internal: 'Interna', hostonly: 'Solo anfitrión' };
 let vnetCache = [];
 const VM_NAME_RE = /^[A-Za-z0-9-]+$/;
@@ -894,7 +894,7 @@ function distroFromTemplate(path) {
   if (n.includes('ubuntu')) return 'ubuntu-24.04';
   if (n.includes('debian-13') || n.includes('trixie')) return 'debian-13';
   if (n.includes('debian')) return 'debian-12';
-  if (n.includes('fedora')) return 'fedora-42';
+  if (n.includes('fedora')) return n.includes('45') ? 'fedora-45' : 'fedora-42';
   if (n.includes('arch')) return 'arch';
   if (n.includes('rocky') || n.includes('rhel')) return 'rocky-9';
   return '';
@@ -977,7 +977,8 @@ $('#vm-create-form').addEventListener('submit', async e => {
     diskGB: +$('#vm-disk').value,
     sshUser: $('#vm-user').value.trim() || 'ubuntu',
     imagePath: $('#vm-template').value,
-    networks: EXPERIMENTAL ? [$('#vm-net-main').value || 'default', ...$$('#vm-net-extra input:checked').map(i => i.value)] : ['default'],
+    networks: [$('#vm-net-main').value || 'default', ...$$('#vm-net-extra input:checked').map(i => i.value)],
+    management: $('#vm-management').checked,
     emulated: $('#vm-emulated').checked,
     disks: $$('#vm-disks .vm-disk-row').map(row => ({
       name: row.querySelector('.vm-disk-name').value.trim(),
