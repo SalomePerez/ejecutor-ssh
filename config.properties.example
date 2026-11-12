@@ -58,3 +58,13 @@ security.apiToken=
 
 app.name=Ejecutor SSH v2
 app.version=2.0.0
+
+# ============================================
+# Hipervisor: virtualbox (VBoxManage local) o libvirt (SSH, diseno anterior)
+# ============================================
+
+vm.provider=virtualbox
+vbox.manage=C:\Program Files\Oracle\VirtualBox\VBoxManage.exe
+# Usuario y contrasena dentro de las VMs (guestcontrol de Guest Additions)
+vbox.guest.user=
+vbox.guest.password=

@@ -35,6 +35,16 @@ type Config struct {
 	// configuracion de red anterior si nadie confirma el cambio (30 a 600 s).
 	VMNetRevertSeconds int
 
+	// VMProvider elige el hipervisor: "virtualbox" (VBoxManage local) o
+	// "libvirt" (por SSH, el diseno anterior con virtualizacion anidada).
+	VMProvider string
+	// VBoxManagePath es la ruta de VBoxManage.exe.
+	VBoxManagePath string
+	// Usuario y contrasena DENTRO de las VMs para guestcontrol. Igual que el
+	// token, la contrasena no se expone por la API de configuracion.
+	VBoxGuestUser     string
+	VBoxGuestPassword string
+
 	// Configuracion del shell remoto
 	ShellType      string // cmd, powershell, both
 	ShellStartPath string
@@ -94,6 +104,10 @@ func Load(filePath string) (*Config, error) {
 		VMSSHKeyPath:        get("vm.ssh.keyPath", get("ssh.keyPath", ".ssh/id_ed25519")),
 		VMSSHKnownHostsPath: get("vm.ssh.knownHostsPath", get("ssh.knownHostsPath", ".ssh/known_hosts")),
 		VMNetRevertSeconds:  clampRevert(getInt("vm.network.revertSeconds", 120)),
+		VMProvider:          strings.ToLower(get("vm.provider", "virtualbox")),
+		VBoxManagePath:      get("vbox.manage", `C:\Program Files\Oracle\VirtualBox\VBoxManage.exe`),
+		VBoxGuestUser:       getEnv("VBOX_GUEST_USER", get("vbox.guest.user", "")),
+		VBoxGuestPassword:   getEnv("VBOX_GUEST_PASSWORD", get("vbox.guest.password", "")),
 		ShellType:           get("shell.type", "cmd"),
 		ShellStartPath:      get("shell.startingPath", "C:\\"),
 		ExecutionMode:       getEnv("EXECUTION_MODE", get("execution.mode", "remote")),
@@ -380,6 +394,10 @@ func (cfg *Config) saveToFile() error {
 		{
 			titulo: "Configuracion SSH del Hipervisor",
 			claves: []string{"vm.ssh.host", "vm.ssh.port", "vm.ssh.user", "vm.ssh.keyPath", "vm.ssh.knownHostsPath", "vm.network.revertSeconds"},
+		},
+		{
+			titulo: "Hipervisor: virtualbox (VBoxManage local) o libvirt (SSH, diseno anterior)",
+			claves: []string{"vm.provider", "vbox.manage", "vbox.guest.user", "vbox.guest.password"},
 		},
 		{
 			titulo: "Configuracion de Shell Remoto",

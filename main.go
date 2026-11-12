@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"html/template"
 	"log"
 	"net/http"
@@ -28,7 +29,19 @@ func main() {
 	// independientemente del modo usado por el modulo de comandos.
 	// La conexion se arma en cada comando para tomar los cambios hechos en
 	// la pestana Configuracion sin reiniciar.
-	vmProvider := vm.NewLibvirtProvider(hypervisorRunner{cfg: cfg})
+	var vmProvider vm.Provider
+	if cfg.VMProvider == "libvirt" {
+		vmProvider = vm.NewLibvirtProvider(hypervisorRunner{cfg: cfg})
+	} else {
+		// VirtualBox es el hipervisor real, en este mismo equipo.
+		vmProvider = vm.NewVBoxProvider(vm.VBoxManageRunner{Path: cfg.VBoxManagePath}, func(string) (vm.GuestCredentials, error) {
+			if cfg.VBoxGuestUser == "" {
+				return vm.GuestCredentials{}, fmt.Errorf("falta vbox.guest.user en config.properties")
+			}
+			return vm.GuestCredentials{User: cfg.VBoxGuestUser, Password: cfg.VBoxGuestPassword}, nil
+		})
+	}
+	log.Printf("hipervisor: %s", cfg.VMProvider)
 
 	// Sirve la pagina principal y evita que este handler responda a otras rutas.
 	http.HandleFunc("/", func(response http.ResponseWriter, request *http.Request) {
