@@ -134,3 +134,20 @@ func TestVBoxCreateWithManagement(t *testing.T) {
 		t.Fatalf("user-data sin la interfaz de gestion:\n%s", userData)
 	}
 }
+
+func TestVBoxUserDataInstallsGuestAdditions(t *testing.T) {
+	ud := vboxUserData("lab-a", GuestCredentials{"vboxuser", "clave"}, "", "")
+	for _, want := range []string{"write_files:", gaScriptPath, "[sh, " + gaScriptPath + "]"} {
+		if !strings.Contains(ud, want) {
+			t.Errorf("falta %q en user-data:\n%s", want, ud)
+		}
+	}
+	if strings.Contains(ud, mgmtScriptPath) {
+		t.Error("sin interfaz de gestion no debe incluir su script")
+	}
+	for _, want := range []string{"which", "semodule -i", "systemctl restart vboxadd-service"} {
+		if !strings.Contains(gaScript, want) {
+			t.Errorf("el script de Guest Additions no tiene %q", want)
+		}
+	}
+}

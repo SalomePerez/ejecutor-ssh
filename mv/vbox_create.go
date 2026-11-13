@@ -305,11 +305,15 @@ func vboxUserData(name string, creds GuestCredentials, publicKey, mgmtMAC string
 	if k := strings.TrimSpace(publicKey); k != "" {
 		key = "\n    ssh_authorized_keys:\n      - " + strconv.Quote(k)
 	}
-	files, mgmtCmd := "", ""
+	// Los scripts van en base64 para no pelear con las comillas de YAML.
+	file := func(path, content string) string {
+		return "  - path: " + path + "\n    permissions: '0755'\n    encoding: b64\n    content: " +
+			base64.StdEncoding.EncodeToString([]byte(content)) + "\n"
+	}
+	files := "write_files:\n" + file(gaScriptPath, gaScript)
+	mgmtCmd := ""
 	if mgmtMAC != "" {
-		// El script va en base64 para no pelear con las comillas de YAML.
-		files = "write_files:\n  - path: " + mgmtScriptPath + "\n    permissions: '0755'\n    encoding: b64\n    content: " +
-			base64.StdEncoding.EncodeToString([]byte(mgmtScript(mgmtMAC))) + "\n"
+		files += file(mgmtScriptPath, mgmtScript(mgmtMAC))
 		mgmtCmd = "  - [sh, " + mgmtScriptPath + "]\n"
 	}
 	return fmt.Sprintf(`#cloud-config
@@ -327,10 +331,37 @@ packages:
   - bzip2
   - tar
 runcmd:
-%s  - [sh, -c, "mkdir -p /mnt/ga && (mount -o ro /dev/sr0 /mnt/ga || mount -o ro /dev/cdrom /mnt/ga) && sh /mnt/ga/VBoxLinuxAdditions.run --nox11; umount /mnt/ga; true"]
-  - [sh, -c, "systemctl enable --now vboxadd-service || true"]
-`, name, strconv.Quote(creds.User), strconv.Quote(creds.Password), key, files, mgmtCmd)
+%s  - [sh, %s]
+`, name, strconv.Quote(creds.User), strconv.Quote(creds.Password), key, files, mgmtCmd, gaScriptPath)
 }
+
+const gaScriptPath = "/usr/local/sbin/ejecutor-guest-additions.sh"
+
+// gaScript instala las Guest Additions (canal 2) desde el ISO conectado.
+// Lo que se aprendio con cada familia:
+//   - Fedora Cloud no trae "which": sin el, el instalador no crea las
+//     unidades de systemd (vboxadd-service).
+//   - El instalador deja VBoxService corriendo dentro de cloud-init; se
+//     reinicia como servicio de systemd para que tenga su propio contexto.
+//   - Con SELinux (Fedora), VBoxService debe poder pasar los procesos que
+//     abre al contexto del usuario: un modulo minimo con dos reglas.
+const gaScript = `#!/bin/sh
+# Escrito por Ejecutor SSH: instala las Guest Additions (canal 2) desde el ISO conectado.
+command -v which >/dev/null 2>&1 || dnf -y -q install which 2>/dev/null || pacman -S --noconfirm --needed which 2>/dev/null || true
+mkdir -p /mnt/ga
+mount -o ro /dev/sr0 /mnt/ga 2>/dev/null || mount -o ro /dev/cdrom /mnt/ga
+sh /mnt/ga/VBoxLinuxAdditions.run --nox11
+umount /mnt/ga
+if command -v semodule >/dev/null 2>&1 && [ "$(getenforce 2>/dev/null)" != "Disabled" ]; then
+  printf '%s\n' '(allow unconfined_service_t unconfined_t (process (transition)))' '(allow unconfined_t chkpwd_exec_t (file (entrypoint)))' > /etc/selinux/ejecutor-vboxservice.cil
+  semodule -i /etc/selinux/ejecutor-vboxservice.cil
+fi
+pkill -x VBoxService
+systemctl daemon-reload
+systemctl enable vboxadd-service
+systemctl restart vboxadd-service
+true
+`
 
 const mgmtScriptPath = "/usr/local/sbin/ejecutor-gestion.sh"
 
