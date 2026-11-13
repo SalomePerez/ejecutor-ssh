@@ -906,7 +906,7 @@ function syncDistro() {
   sel.disabled = !!d;
   // El usuario sugerido sigue a la distribucion mientras no se haya editado a mano.
   const user = $('#vm-user');
-  if (!user.dataset.touched) user.value = DISTRO_USERS[sel.value] || 'ubuntu';
+  syncUser();
   $('#vm-distro-help').textContent = d ? 'Detectada por el nombre de la plantilla.' : 'No se reconoce la plantilla: elija la distribución.';
   syncEmulated();
 }
@@ -918,7 +918,17 @@ function syncEmulated() {
   if (!box.dataset.touched) box.checked = EMULATED_DISTROS.includes($('#vm-distro').value);
 }
 $('#vm-template').addEventListener('change', syncDistro);
-$('#vm-distro').addEventListener('change', () => { if (!$('#vm-user').dataset.touched) $('#vm-user').value = DISTRO_USERS[$('#vm-distro').value] || 'ubuntu'; syncEmulated(); });
+// Con VirtualBox el usuario dentro de la VM es siempre el de Configuración
+// (vbox.guest.user): con él entran guestcontrol y el canal de gestión.
+function syncUser() {
+  const user = $('#vm-user');
+  const vbox = configCache['vm.provider'] !== 'libvirt' && configCache['vbox.guest.user'];
+  user.readOnly = !!vbox;
+  user.title = vbox ? 'Lo fija Configuración → vbox.guest.user' : '';
+  if (vbox) user.value = vbox;
+  else if (!user.dataset.touched) user.value = DISTRO_USERS[$('#vm-distro').value] || 'ubuntu';
+}
+$('#vm-distro').addEventListener('change', () => { syncUser(); syncEmulated(); });
 $('#vm-emulated').addEventListener('change', () => { $('#vm-emulated').dataset.touched = '1'; });
 $('#vm-user').addEventListener('input', () => { $('#vm-user').dataset.touched = '1'; });
 
@@ -1036,7 +1046,7 @@ window.toast = toast;
 window.addEventListener('DOMContentLoaded', async () => {
   await loadConfig();
   loadTemplates();
-  if (EXPERIMENTAL) loadVirtualNetworks();
+  loadVirtualNetworks();
   // Enlace directo: #vms/red/<vm> abre el panel de Red de esa VM.
   const [start, sub, vmName] = decodeURIComponent((location.hash || '').slice(1) || store.get('tab', 'vms')).split('/');
   showTab(start);
