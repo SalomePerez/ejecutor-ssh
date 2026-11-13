@@ -493,7 +493,9 @@ func describe(i *NetIface) string {
 
 func netplanPath(iface string) string { return "/etc/netplan/90-ejecutor-" + iface + ".yaml" }
 func networkdPath(iface string) string {
-	return "/etc/systemd/network/10-ejecutor-" + iface + ".network"
+	// systemd-networkd usa el PRIMER archivo (en orden alfabetico) cuyo [Match]
+	// coincide: con "05" gana a los de cloud-init (10-cloud-init-<iface>.network).
+	return "/etc/systemd/network/05-ejecutor-" + iface + ".network"
 }
 
 const ifupdownPath = "/etc/network/interfaces"
@@ -517,6 +519,9 @@ func buildFiles(st *NetState, i *NetIface, cfg *IfaceConfig, mode string) []NetF
 		}
 	case "networkd":
 		files = append(files, NetFile{Path: networkdPath(i.Name), Lines: networkdLines(i.Name, cfg)})
+		if st.CloudInit {
+			files = append(files, NetFile{Path: cloudDisablePath, Note: "para que cloud-init no vuelva a escribir la red al reiniciar", Lines: lines(true, "# Escrito por Ejecutor SSH", "network: {config: disabled}")})
+		}
 	case "ifupdown":
 		files = append(files, NetFile{Path: ifupdownPath, Lines: ifupdownLines(st, i, cfg)})
 		if mode == "static" && cfg.Role == "main" && cfg.DNS != "" && !st.ResolvLink {
@@ -863,6 +868,12 @@ func buildPhases(st *NetState, i *NetIface, cfg *IfaceConfig, mode string, plan 
 		V = append(V, NetCmd{Cmd: "ip -4 -o addr show dev " + I, Note: "el servidor DHCP entregó una IP", expect: "inet ", retries: 15})
 	} else {
 		V = append(V, NetCmd{Cmd: "ip -4 -o addr show dev " + I, Note: "la IP pedida está en la tarjeta", expect: "inet " + target + "/", retries: 5})
+		if mode == "static" {
+			// Con la misma IP, una direccion que sigue viniendo del DHCP pasaria
+			// la verificacion anterior: el kernel marca esas como "dynamic".
+			V = append(V, NetCmd{Cmd: "ip -4 -o addr show dev " + I + " (sin «dynamic»)", Note: "la IP es fija: ya no la entrega el DHCP",
+				run: "ip -4 -o addr show dev " + I + " | grep " + quoteShell("inet "+target+"/") + " | grep -v dynamic", mustOK: true, retries: 5})
+		}
 	}
 	if mode != "extra" {
 		if isDefRole(cfg.Role) {
