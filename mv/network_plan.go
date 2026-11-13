@@ -217,7 +217,10 @@ func PlanNetwork(st *NetState, req NetRequest, revertSeconds int) *NetPlan {
 		default:
 			add("ok", fmt.Sprintf("IP válida en la red %s (equipos de %s a %s).", netTxt, u32ToIP(nn+1), u32ToIP(bc-1)))
 		}
-		if ln != nil {
+		if ln != nil && ln.HostIP == "" {
+			// Red del hipervisor sin subred conocida (p. ej. una red interna de
+			// VirtualBox sin DHCP): no hay contra que comparar.
+		} else if ln != nil {
 			hn, _ := ipToU32(ln.HostIP)
 			lnet := netOf(hn, ln.Prefix)
 			if lnet != nn || p != ln.Prefix {

@@ -172,3 +172,19 @@ func TestValidTarget(t *testing.T) {
 		}
 	}
 }
+
+func TestPlanInternalNetWithoutSubnetHasNoFalseWarning(t *testing.T) {
+	st := &NetState{Manager: "netplan", Hypervisor: "VirtualBox", Interfaces: []NetIface{
+		{Name: "enp0s3", MAC: "08:00:27:00:00:01", Type: "eth", IP: "10.0.2.15", Prefix: 24, Mode: "dhcp", Role: "main", Gateway: "10.0.2.2", Metric: 100, Extras: []string{}, Nets: []string{}},
+		{Name: "enp0s8", MAC: "08:00:27:00:00:02", Type: "eth", Mode: "none", Role: "none", Extras: []string{}, Nets: []string{}},
+	}, Libvirt: map[string]*LibvirtNet{"08:00:27:00:00:02": {Network: "interna: lan-a", Isolated: true, Leases: map[string]string{}, Reserved: map[string]string{}}}}
+	plan := PlanNetwork(st, NetRequest{Interface: "enp0s8", Mode: "static", IP: "192.168.10.10", Mask: "/24", Gateway: "192.168.10.1", Role: "routes", Nets: "192.168.20.0/24"}, 120)
+	for _, c := range plan.Checks {
+		if strings.Contains(c.Text, "0.0.0.0/0") {
+			t.Fatalf("aviso falso: %s", c.Text)
+		}
+	}
+	if !plan.Valid {
+		t.Fatalf("debia ser valido: %+v", plan.Checks)
+	}
+}
