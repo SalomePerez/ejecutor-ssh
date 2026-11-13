@@ -1,7 +1,7 @@
 // ============== PANEL DE RED DE UNA VM ==============
 // El usuario decide interfaz, modo y datos; el servidor valida (POST .../plan)
 // y aplica (POST .../apply). Todo lo que el panel muestra sale de la lectura
-// real de la VM, hecha por el agente QEMU (GET .../network).
+// real de la VM, hecha por el canal elegido: Guest Additions o SSH de gestión (GET .../network).
 
 (function () {
   const MAN = 'https://manpages.debian.org/';
@@ -108,7 +108,7 @@
     let h = P('Interfaz de red.', 'Es el nombre que el kernel le da a cada tarjeta. Los nombres predecibles salen de la ubicación física: <code>en</code> es Ethernet, <code>p1s0</code> el bus PCI 1, ranura 0. Así el nombre no cambia entre reinicios, como sí podía pasar con <code>eth0</code> ' + R('mannaming') + ' ' + R('dah', 'Manual de Debian §8.2.1') + '. La MAC identifica la tarjeta en la red local, y ARP la asocia con la IP ' + R('rfc826') + '.');
     if (virt) h += P('Interfaces virtuales.', 'Las marcadas como <i>virtual</i> no son tarjetas: las crea un programa (Docker, libvirt, una VPN). La app lo sabe porque en <code>/sys/class/net</code> apuntan a <code>/devices/virtual/</code>. Se gestionan desde el programa que las creó.');
     if (multi) h += P('Varias tarjetas.', 'Un equipo con dos o más interfaces es <i>multihomed</i>: cada una tiene su IP en su red y se configura por separado ' + R('rfc1122', 'RFC 1122 §3.3.4') + '. Si además pasa paquetes entre redes, se comporta como router ' + R('rfc1812') + '; eso lo decide <code>net.ipv4.ip_forward</code> ' + R('kernsysctl') + '.');
-    h += P('Cómo llega la app a la VM.', 'No entra por SSH: habla con el hipervisor y este con el agente QEMU de la VM por un canal virtio interno ' + R('qemuga') + '. Ese canal no usa la red de la VM, así que cambiar la IP no lo corta.');
+    h += P('Cómo llega la app a la VM.', (S.channel ? 'Entra por SSH a la interfaz de gestión, una tarjeta reservada que nunca se modifica: cambiar las demás no corta la sesión.' : 'No entra por SSH a la red que cambia: le pide a VirtualBox que ejecute los comandos con las Guest Additions, por un dispositivo interno ' + R('qemuga') + '. Ese canal no usa la red de la VM, así que cambiar la IP no lo corta.'));
     h += P('En ' + distro().name + '.', 'Manual oficial: ' + distroRefs() + '.');
     setL('net-L-iface', 'qué es una interfaz' + (multi ? ' · varias tarjetas' : '') + (virt ? ' · interfaces virtuales' : '') + ' · cómo llega la app', h);
   }
@@ -199,7 +199,7 @@
     const n = $('#net-ifnote');
     n.innerHTML = real.length > 1
       ? `<b>${real.length} tarjetas.</b> Cada una se configura por separado. ` + (defs > 1 ? `Hay <b>${defs} rutas por defecto</b>; gana la de menor métrica.` : 'Regla práctica: una sola puerta de enlace principal.')
-      : '<b>Una sola tarjeta.</b> La app no se desconecta al cambiarla: habla con la VM por el agente QEMU, no por su red.';
+      : '<b>Una sola tarjeta.</b> La app no se desconecta al cambiarla: habla con la VM por las Guest Additions, no por su red.';
   }
   function renderActual() {
     const i = iface();
@@ -354,7 +354,7 @@
     const phases = S.plan.phases.map(p => p.name);
     $('#net-run').hidden = false;
     $('#net-stepper').innerHTML = phases.map((p, n) => `<li class="${n === 0 ? 'run' : ''}"><span>${n + 1}</span><b>${esc(p)}</b></li>`).join('');
-    $('#net-log').textContent = 'Aplicando por el agente QEMU… (puede tardar hasta un minuto; la VM tiene programada su vuelta atrás)';
+    $('#net-log').textContent = 'Aplicando por ' + (S.channel ? 'SSH a la interfaz de gestión' : 'las Guest Additions') + '… (puede tardar hasta un minuto; la VM tiene programada su vuelta atrás)';
     $('#net-result').innerHTML = '';
     renderIfaces(); renderMode(); renderChecks();
     try {
@@ -480,15 +480,14 @@
     const giveUp = WAIT.tries >= WAIT.max;
     const elapsed = () => { const s = Math.round((Date.now() - WAIT.since) / 1000); return s < 60 ? s + ' s' : Math.floor(s / 60) + ' min ' + (s % 60) + ' s'; };
     $('#net-loading').innerHTML =
-      `<div class="net-wait">${giveUp ? '' : '<span class="spinner"></span>'}<div><b>${giveUp ? 'El agente QEMU no respondió.' : 'Esperando al agente QEMU de ' + esc(name) + '…'}</b>` +
+      `<div class="net-wait">${giveUp ? '' : '<span class="spinner"></span>'}<div><b>${giveUp ? 'El canal no respondió.' : 'Esperando el canal de ' + esc(name) + '…'}</b>` +
       `<div class="net-help">${giveUp ? 'Se dejó de reintentar.' : 'Se reintenta solo cada 15 s.'} Tiempo esperando: <span id="net-elapsed">${elapsed()}</span></div></div></div>` +
       `<div class="net-causes">
-        <div><b>¿Acaba de encender o crear la VM?</b> Es normal: en el primer arranque cloud-init instala el agente y tarda 3–4 minutos, más si el hipervisor anda corto de memoria.</div>
-        <div><b>¿La VM es de antes de la corrección (por ejemplo vm5 o vm6)?</b> Su primer arranque se cortó y nunca instaló el agente: esperar no lo arregla. <b>Reparar agente</b> le conecta de nuevo la configuración de cloud-init y la reinicia.</div>
+        <div><b>¿Acaba de encender o crear la VM?</b> Es normal: en el primer arranque cloud-init instala las Guest Additions y tarda de 3 a 7 minutos, más si el equipo anda corto de memoria.</div>
+        <div><b>¿Tiene interfaz de gestión?</b> Ese canal (3) suele estar listo antes: elíjalo arriba, en <b>Canal</b>.</div>
       </div>
       <div class="net-actions">
         <button type="button" class="btn-secondary" data-net-retry>Reintentar ahora</button>
-        <button type="button" class="btn-primary" data-net-repair>Reparar agente (reinicia la VM)</button>
       </div>
       <details class="net-raw"><summary>Detalle técnico</summary><pre class="net-term">${esc(error)}</pre></details>`;
     stopWaiting();
