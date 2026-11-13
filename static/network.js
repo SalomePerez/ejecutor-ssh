@@ -191,7 +191,7 @@
         `<span class="s mono">${esc(i.mac)}</span>` +
         `<span class="s"><span class="mono">${i.ip ? esc(i.ip + '/' + i.prefix) : 'sin IPv4'}</span>${i.ip ? ' · ' + (i.mode === 'dhcp' ? 'DHCP (dynamic)' : 'fija') : ''}${i.extras.length ? ' · +' + i.extras.length + ' adicional' : ''}</span>` +
         `<span class="s">${i.role === 'none' ? 'sin puerta de enlace' : 'puerta de enlace <span class="mono">' + esc(i.gateway) + '</span> · ' + esc(roleTxt(i))}</span>` +
-        (ln ? `<span class="s">red de libvirt «${esc(ln.network)}» · DHCP ${esc(ln.dhcpStart || 'no')}${ln.dhcpEnd ? '–' + esc(ln.dhcpEnd) : ''}</span>` : '') +
+        (ln ? `<span class="s">red de ${esc(st.hypervisor || 'libvirt')} «${esc(ln.network)}» · DHCP ${esc(ln.dhcpStart || 'no')}${ln.dhcpEnd ? '–' + esc(ln.dhcpEnd) : ''}</span>` : '') +
         '</label>';
     }).join('');
     const real = st.interfaces.filter(i => !i.virtual);
