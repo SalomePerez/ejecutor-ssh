@@ -17,7 +17,7 @@ Equipo físico (Windows)
 
 - **Máquinas virtuales**: crear desde plantillas (imágenes oficiales de nube con cloud-init), encender, apagar, editar CPU y memoria, renombrar, eliminar, discos adicionales y compartidos.
 - **Tarjetas de red**: agregar o quitar tarjetas (hasta 8; con la VM apagada) en NAT, puente, solo anfitrión, red interna o red NAT.
-- **Redes virtuales**: listar las redes de VirtualBox y crear redes internas (con o sin DHCP) y redes NAT.
+- **Redes virtuales**: listar las redes de VirtualBox (NAT, puente, solo anfitrión, internas, red NAT) con las VMs conectadas a cada una, crear redes internas (con o sin DHCP) y redes NAT, y crear de un clic las del laboratorio (**LAN A** `interna:lan-a` 192.168.10.0/24 y **LAN B** `interna:lan-b` 192.168.20.0/24). En el inventario, el filtro **Red** (o un clic en la red de una VM) muestra solo las VMs conectadas a esa red.
 - **Configuración de red** (cambia la VM): lee la red real de la VM, detecta el gestor (ifupdown, Netplan, NetworkManager, systemd-networkd), y configura IP fija, DHCP o IP adicional, puerta de enlace y DNS de cada interfaz. Valida, muestra el archivo, los comandos y las rutas resultantes, y aplica con respaldo y **reversión automática** si algo falla. Incluye el **reenvío IPv4** (la VM como router).
 - **Comandos de red** (solo consulta y diagnóstico, no cambia nada): tabla de rutas (`ip route`), direcciones (`ip addr`), vecinos ARP (`ip neigh`, `arp -a`), puertos en escucha (`ss -tulnp`), conexiones (`ss -tan`, `netstat -ant`), `ping`, `tracepath` y captura de paquetes (`tcpdump`). Se escoge el comando de un catálogo; no se escriben comandos libres.
 - Módulos heredados: comandos remotos en un equipo (SSH), llaves SSH, usuarios de Windows y configuración.
@@ -78,7 +78,7 @@ lab-debian (A, Netplan)          debian-red (R, ifupdown)            lab-ubuntu 
 192.168.10.10 ── interna:lan-a ── 192.168.10.1 | 192.168.20.1 ── interna:lan-b ── 192.168.20.10
 ```
 
-1. Redes virtuales → crear `lan-a` (192.168.10.0/24) y `lan-b` (192.168.20.0/24), sin DHCP.
+1. Redes virtuales → **Crear LAN A y LAN B** (`lan-a` 192.168.10.0/24 y `lan-b` 192.168.20.0/24, sin DHCP).
 2. Tarjetas → A: `interna:lan-a`; B: `interna:lan-b`; R: las dos.
 3. Red → R: IP fija en cada tarjeta (sin puerta de enlace) y **Activar reenvío**.
 4. Red → A: `192.168.10.10/24`, puerta de enlace `192.168.10.1`, uso *solo hacia ciertas redes* `192.168.20.0/24`. B igual, en espejo.

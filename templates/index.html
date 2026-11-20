@@ -8,7 +8,7 @@
     // Aplica el tema guardado antes de pintar, para que no parpadee.
     try { const t = localStorage.getItem('theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
   </script>
-  <link rel="stylesheet" href="/static/style.css?v=25">
+  <link rel="stylesheet" href="/static/style.css?v=27">
   <link rel="stylesheet" href="/static/network.css?v=26">
 </head>
 <body>
@@ -56,7 +56,10 @@
                 <h3>Inventario</h3>
                 <div class="vm-summary" id="vm-summary"></div>
               </div>
-              <button type="button" class="btn-secondary" id="vm-refresh" title="Volver a leer las VMs del hipervisor">↻ Actualizar</button>
+              <div class="btn-row">
+                <label class="vm-filter">Red <select id="vm-net-filter" title="Mostrar solo las VMs conectadas a esta red"><option value="">todas</option></select></label>
+                <button type="button" class="btn-secondary" id="vm-refresh" title="Volver a leer las VMs del hipervisor">↻ Actualizar</button>
+              </div>
             </div>
             <div class="notice warn" id="vm-mem-warning" hidden></div>
             <div id="vms-list" class="items-list" aria-live="polite">
@@ -168,6 +171,15 @@
           </section>
 
           <section class="card accent">
+            <h3>Redes del laboratorio</h3>
+            <p class="card-head sub">Las dos redes internas del escenario de prueba (una VM hace de router entre ellas). Se crean sin DHCP: las IPs se fijan en Configuración de red.</p>
+            <ul class="lab-nets">
+              <li><b>LAN A</b> · <code>interna:lan-a</code> · 192.168.10.0/24</li>
+              <li><b>LAN B</b> · <code>interna:lan-b</code> · 192.168.20.0/24</li>
+            </ul>
+            <div class="btn-row"><button type="button" class="btn-secondary" id="vnet-lab">Crear LAN A y LAN B</button></div>
+            <div id="vnet-lab-status" class="status-box" role="status"></div>
+            <hr class="sep-line">
             <h3>Crear red virtual</h3>
             <form id="vnet-form" class="form-group" novalidate>
               <div class="form-item">
@@ -673,7 +685,7 @@
     </form>
   </dialog>
 
-  <script src="/static/app.js?v=26"></script>
+  <script src="/static/app.js?v=28"></script>
   <script src="/static/network.js?v=26"></script>
   <script src="/static/netcmds.js?v=1"></script>
 </body>

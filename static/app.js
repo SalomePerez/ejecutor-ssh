@@ -552,6 +552,7 @@ const NET_MODES = { nat: 'NAT', route: 'Enrutada', isolated: 'Aislada', bridge: 
 let vnetCache = [];
 const VM_NAME_RE = /^[A-Za-z0-9-]+$/;
 let vmCache = [];
+let vmNetFilter = ''; // red elegida en el filtro del inventario ('' = todas)
 let vmTimer = null;
 let hostInfo = null; // memoria y CPU del hipervisor (GET /api/hypervisor)
 
@@ -605,7 +606,9 @@ function renderVMs() {
   $('#vm-mem-warning').hidden = !over;
   if (over) $('#vm-mem-warning').innerHTML = `<span>⚠</span><span>Las VMs encendidas piden <b>${(used / 1024).toFixed(1)} GB</b> y el hipervisor tiene <b>${(hostInfo.memoryMB / 1024).toFixed(1)} GB</b>. Todo irá lento y el canal interno tardará mucho en responder. Apague las VMs que no esté usando.</span>`;
   if (!vmCache.length) { list.innerHTML = '<p class="placeholder">No hay máquinas virtuales. Cree la primera con el formulario.</p>'; return; }
-  list.innerHTML = vmCache.map(vm => {
+  const shown = vmNetFilter ? vmCache.filter(v => (v.networks || []).some(n => n.network === vmNetFilter)) : vmCache;
+  if (!shown.length) { list.innerHTML = `<p class="placeholder">Ninguna VM está conectada a «${esc(vmNetFilter)}». <a href="#" data-net-filter="">Ver todas</a></p>`; return; }
+  list.innerHTML = (vmNetFilter ? `<div class="notice info"><span>ⓘ</span><span>${shown.length} ${shown.length === 1 ? 'VM conectada' : 'VMs conectadas'} a <b>${esc(vmNetFilter)}</b>. <a href="#" data-net-filter="">Ver todas</a></span></div>` : '') + shown.map(vm => {
     const [cls, label] = vmStateLabel(vm.status);
     const running = vm.status === 'running';
     const hint = running ? sshHint(vm) : '';
@@ -618,7 +621,7 @@ function renderVMs() {
         <span>${vm.diskGB ? vm.diskGB + ' GB' : '— GB'}</span>
         ${running ? `<span>IP <b class="mono">${vm.ip ? esc(vm.ip) : 'esperando…'}</b></span>` : ''}
       </div>
-      ${(vm.networks || []).length ? `<div class="item-meta">${vm.networks.map((n, i) => `<span class="chip ${i ? 'dim' : ''}" title="MAC ${esc(n.mac)}">${i ? '' : '★ '}${esc(n.network)}</span>`).join('')}</div>` : ''}
+      ${(vm.networks || []).length ? `<div class="item-meta">${vm.networks.map((n, i) => `<button type="button" class="chip chip-btn ${i ? 'dim' : ''}" data-net-filter="${esc(n.network)}" title="MAC ${esc(n.mac)} · clic: ver las VMs de esta red">${i ? '' : '★ '}${esc(n.network)}</button>`).join('')}</div>` : ''}
       ${running ? vmAccess(vm, hint) : ''}
       <div class="item-actions">
         ${running
@@ -663,6 +666,7 @@ async function listVMs({ quiet = false } = {}) {
   }
   vmCache = r.data.data;
   renderVMs();
+  if (vnetCache.length) renderVirtualNetworks(); // el estado de cada VM en sus redes
   scheduleVMRefresh();
 }
 
@@ -820,6 +824,7 @@ async function loadVirtualNetworks() {
   vnetCache = r.data.data || [];
   renderVirtualNetworks();
   fillNetworkSelects();
+  fillNetFilter();
 }
 window.loadVirtualNetworks = loadVirtualNetworks;
 
@@ -834,11 +839,57 @@ function renderVirtualNetworks() {
       <dt>Hipervisor (puerta de enlace)</dt><dd>${esc(n.hostIP || '—')}</dd>
       <dt>DHCP</dt><dd>${n.dhcpStart ? esc(n.dhcpStart + ' – ' + n.dhcpEnd) : 'no (IPs fijas)'}</dd>
       <dt>Bridge</dt><dd>${esc(n.bridge || '—')}</dd>
-      <dt>VMs conectadas</dt><dd>${n.vms.length ? n.vms.map(esc).join(', ') : 'ninguna'}</dd>
+      <dt>VMs conectadas</dt><dd>${n.vms.length ? '<span class="vnet-vms">' + n.vms.map(v => vnetVmChip(v)).join('') + '</span>' : 'ninguna'}</dd>
     </dl>
+    ${n.vms.length ? `<div><button type="button" class="btn-small" data-net-filter="${esc(n.name)}">Ver estas VMs en el inventario</button></div>` : ''}
     <div class="item-actions"><span class="sep"></span>${n.name === 'default' ? '<small>Red por defecto: no se elimina</small>' : `<button type="button" class="btn-small btn-danger" data-act="vnet-del"${n.vms.length ? ' disabled title="Quite primero las tarjetas de las VMs conectadas"' : ''}>Eliminar</button>`}</div>
   </div>`).join('');
 }
+
+// Una VM de la lista de una red: punto verde si esta encendida.
+function vnetVmChip(name) {
+  const vm = vmCache.find(v => v.name === name);
+  const on = vm && vm.status === 'running';
+  return `<span class="chip ${on ? 'ok' : 'dim'}" title="${on ? 'encendida' : 'apagada'}">${on ? '● ' : ''}${esc(name)}</span>`;
+}
+
+// Filtro del inventario por red.
+function fillNetFilter() {
+  const sel = $('#vm-net-filter');
+  sel.innerHTML = '<option value="">todas</option>' + vnetCache.map(n => `<option value="${esc(n.name)}">${esc(n.name)} (${n.vms.length})</option>`).join('');
+  sel.value = vnetCache.some(n => n.name === vmNetFilter) ? vmNetFilter : '';
+}
+function setNetFilter(name) {
+  vmNetFilter = name || '';
+  $('#vm-net-filter').value = vmNetFilter;
+  window.showVmTab('manage');
+  renderVMs();
+}
+$('#vm-net-filter').addEventListener('change', e => setNetFilter(e.target.value));
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-net-filter]');
+  if (!b) return;
+  e.preventDefault();
+  setNetFilter(b.dataset.netFilter);
+});
+
+// Redes del laboratorio: crea las que falten (internas, sin DHCP).
+const LAB_NETS = [{ name: 'lan-a', subnet: '192.168.10.0/24' }, { name: 'lan-b', subnet: '192.168.20.0/24' }];
+$('#vnet-lab').addEventListener('click', async e => {
+  const statusEl = $('#vnet-lab-status');
+  const btn = e.currentTarget;
+  busy(btn, true, 'Creando…');
+  const done = [], had = [], failed = [];
+  for (const n of LAB_NETS) {
+    if (vnetCache.some(v => v.name === 'interna:' + n.name)) { had.push(n.name); continue; }
+    const r = await api('/api/networks', { method: 'POST', body: { name: n.name, mode: 'isolated', subnet: n.subnet, dhcp: false } });
+    if (r.ok && r.data.success) done.push(n.name); else failed.push(n.name + ': ' + errMsg(r, 'error'));
+  }
+  busy(btn, false);
+  const msg = [done.length ? 'Creadas: ' + done.join(', ') + '.' : '', had.length ? 'Ya existían: ' + had.join(', ') + '.' : '', failed.length ? 'Fallaron: ' + failed.join('; ') : ''].filter(Boolean).join(' ');
+  statusBox(statusEl, failed.length ? 'error' : 'success', msg);
+  loadVirtualNetworks();
+});
 
 function fillNetworkSelects() {
   const main = $('#vm-net-main');
@@ -1086,5 +1137,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (start === 'vms' && sub === 'red' && vmName) window.openNetwork(vmName);
   else if (start === 'vms' && sub === 'comandos' && vmName) window.openNetCmds(vmName);
   else if (start === 'vms' && sub === 'docs') window.showVmTab('docs');
+  else if (start === 'vms' && sub === 'redes') window.showVmTab('nets');
+  else if (start === 'vms' && sub === 'filtro' && vmName) setNetFilter(vmName); // #vms/filtro/interna:lan-a
   window.addEventListener('hashchange', () => showTab(location.hash.slice(1).split('/')[0]));
 });
