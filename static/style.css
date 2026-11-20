@@ -230,6 +230,11 @@ button.chip:hover { border-color: var(--teal); }
 .vm-state.running { color: var(--ok); background: var(--ok-soft); }
 .vm-state.stopped { color: var(--muted); background: var(--panel); border: 1px solid var(--line); }
 .vm-state.other { color: var(--warn); background: var(--warn-soft); }
+.vm-access { display: grid; gap: 6px; padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--panel); }
+.vm-access .acc { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0; }
+.vm-access .lab { display: grid; flex: 0 1 15rem; min-width: 0; font-size: .84rem; }
+.vm-access .lab small { color: var(--muted); font-size: .76rem; }
+.vm-access .vm-ssh { flex: 1 1 18rem; }
 .vm-ssh { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .vm-ssh code { flex: 1; min-width: 0; padding: 5px 9px; border-radius: 6px; background: var(--panel); border: 1px solid var(--line); overflow-x: auto; white-space: nowrap; font-size: .78rem; }
 .vm-edit { display: grid; gap: 10px; padding: 12px; border: 1px dashed var(--line); border-radius: var(--radius-sm); background: var(--panel); }

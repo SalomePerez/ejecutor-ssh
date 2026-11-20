@@ -54,6 +54,10 @@ func (p *VBoxProvider) ManagementTarget(name string) (*MgmtTarget, error) {
 	if err != nil {
 		return nil, err
 	}
+	return p.managementFromInfo(name, values)
+}
+
+func (p *VBoxProvider) managementFromInfo(name string, values map[string]string) (*MgmtTarget, error) {
 	for n := 1; n <= 8; n++ {
 		if values[fmt.Sprintf("nic%d", n)] != "hostonly" {
 			continue

@@ -22,6 +22,9 @@ type VM struct {
 	SSHPrivateKeyPath string   `json:"sshPrivateKeyPath,omitempty"`
 	SSHPublicKeyPath  string   `json:"sshPublicKeyPath,omitempty"`
 	IP                string   `json:"ip,omitempty"`
+	// MgmtIP es la IP de la tarjeta de gestion (solo anfitrion), por la que
+	// se entra por SSH desde el anfitrion. Vacia si la VM no tiene esa tarjeta.
+	MgmtIP string `json:"mgmtIp,omitempty"`
 	Status            VMStatus `json:"status"`
 	CreatedAt         string   `json:"createdAt,omitempty"`
 	ImagePath         string   `json:"imagePath,omitempty"`

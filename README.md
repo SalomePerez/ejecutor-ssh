@@ -22,7 +22,20 @@ Equipo físico (Windows)
 - **Comandos de red** (solo consulta y diagnóstico, no cambia nada): tabla de rutas (`ip route`), direcciones (`ip addr`), vecinos ARP (`ip neigh`, `arp -a`), puertos en escucha (`ss -tulnp`), conexiones (`ss -tan`, `netstat -ant`), `ping`, `tracepath` y captura de paquetes (`tcpdump`). Se escoge el comando de un catálogo; no se escriben comandos libres.
 - Módulos heredados: comandos remotos en un equipo (SSH), llaves SSH, usuarios de Windows y configuración.
 
-## Canales de administración
+## Mecanismos de acceso a una VM
+
+Una VM se puede alcanzar por dos mecanismos **independientes**:
+
+| Mecanismo | Cómo se entra | Depende de la red de la VM |
+|---|---|---|
+| **Hipervisor** | la consola de VirtualBox (botón *Abrir consola* de cada VM) y, para la app, las Guest Additions (`guestcontrol`) | no |
+| **Canal adicional: SSH** | SSH desde el anfitrión a la tarjeta de gestión (*solo anfitrión*); el comando aparece en cada VM | sí, solo de la tarjeta de gestión |
+
+El acceso por el hipervisor es el normal: siempre está disponible y no depende de ninguna IP. El SSH de gestión **no es un paso obligatorio**: se implementó para demostrar que una VM puede tener un segundo mecanismo de acceso y administración, independiente del primero. Por ejemplo, con la consola de VirtualBox abierta se puede entrar al mismo tiempo por SSH desde el anfitrión, y los dos funcionan a la vez. La tarjeta de gestión es opcional al crear la VM.
+
+La app abre la consola sobre la VM en marcha (`VBoxManage startvm <vm> --type separate`), sin reiniciarla. Para cerrar la ventana sin apagar la VM, escoja *Continuar ejecutando en segundo plano*.
+
+## Canales de administración de la app
 
 Cambiar la IP de una VM por SSH a esa misma IP corta la sesión. La app usa canales que no pasan por la interfaz que se modifica:
 
@@ -30,7 +43,7 @@ Cambiar la IP de una VM por SSH a esa misma IP corta la sesión. La app usa cana
 |---|---|---|---|
 | En banda | SSH a la interfaz que se cambia | — | descartado: se corta |
 | Canal interno (hipervisor) | `VBoxManage guestcontrol run` (Guest Additions, dispositivo VMMDev) | Guest Additions y usuario con contraseña en la VM | **implementado** (por defecto) |
-| Canal de gestión (SSH) | SSH a una segunda tarjeta en la red *solo anfitrión* | tarjeta de gestión con IP (DHCP de VirtualBox) | **implementado** |
+| Canal de gestión (SSH) | SSH a una segunda tarjeta en la red *solo anfitrión* | tarjeta de gestión con IP (DHCP de VirtualBox) | **implementado** (opcional) |
 
 - El canal interno (Guest Additions) es el equivalente en VirtualBox de `qemu-guest-agent` (el canal del diseño anterior con libvirt).
 - En el canal de gestión (SSH) la IP de gestión se obtiene del servidor DHCP de VirtualBox (`dhcpserver findlease`), sin depender de las Guest Additions; con ese canal el plan **no permite modificar la interfaz de gestión**. Funciona igual con un equipo físico que tenga una interfaz de gestión.
@@ -122,9 +135,10 @@ $env:VBOX_LIVE=1; go test ./mv -run Live -v
 
 | Método y ruta | Qué hace |
 |---|---|
-| `GET /api/vms` | VMs con estado, recursos, IP (Guest Additions) y tarjetas |
+| `GET /api/vms` | VMs con estado, recursos, IP (Guest Additions), IP de gestión (`mgmtIp`) y tarjetas |
 | `POST /api/vms` | crear: `{"name","distro","cpu","memoryMB","diskGB","imagePath","networks":["nat","interna:lan-a"],"management":true,"disks":[...]}` |
 | `POST /api/vms/{vm}/start` · `/stop` · `/rename` · `PUT` · `DELETE` | ciclo de vida |
+| `POST /api/vms/{vm}/console` | abre la consola de VirtualBox de la VM encendida, sin reiniciarla |
 | `GET /api/templates` | plantillas disponibles |
 | `GET /api/hypervisor` | memoria y CPU del anfitrión |
 | `GET/POST /api/networks`, `DELETE /api/networks/{red}` | redes de VirtualBox |

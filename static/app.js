@@ -566,15 +566,32 @@ function vmStateLabel(status) {
 // Comando para entrar a la VM desde este equipo. Con libvirt las VMs estan
 // en la red NAT del hipervisor y se salta por el (-J); con VirtualBox la IP
 // se alcanza directo (puente, solo anfitrion) desde este mismo equipo.
+// Comando SSH desde este equipo. En VirtualBox va a la IP de la tarjeta de
+// gestion (solo anfitrion): la IP de la NAT (10.0.2.x) no se alcanza desde
+// el anfitrion. Con libvirt, a la IP de la VM saltando por el hipervisor.
 function sshHint(vm) {
-  if (!vm.ip) return '';
   const c = configCache;
+  const vbox = c['vm.provider'] !== 'libvirt';
+  const ip = vbox ? vm.mgmtIp : vm.ip;
+  if (!ip) return '';
   const jump = c['vm.provider'] === 'libvirt' && c['vm.ssh.host'] ? ` -J ${c['vm.ssh.user'] || 'root'}@${c['vm.ssh.host']}${c['vm.ssh.port'] && c['vm.ssh.port'] !== '22' ? ':' + c['vm.ssh.port'] : ''}` : '';
   // Ruta absoluta (la manda el servidor) y entre comillas: la carpeta del
   // proyecto tiene espacios y el comando se pega desde cualquier carpeta.
   const keys = (c['keys.storePath'] || './keys').replace(/^\.\//, '');
   const key = vm.sshPrivateKeyPath || `${keys}/${vm.sshKeyName || vm.name + '-ssh'}`;
-  return `ssh -i "${key}"${jump} ${vm.sshUser || 'ubuntu'}@${vm.ip}`;
+  return `ssh -i "${key}"${jump} ${vm.sshUser || 'ubuntu'}@${ip}`;
+}
+
+// Los dos mecanismos de acceso, independientes: la consola del hipervisor
+// (sin red) y el SSH por la tarjeta de gestion. Pueden estar abiertos a la vez.
+function vmAccess(vm, hint) {
+  const vbox = configCache['vm.provider'] !== 'libvirt';
+  return `<div class="vm-access">
+    ${vbox ? `<div class="acc"><span class="lab"><b>Consola del hipervisor</b><small>ventana de VirtualBox · no usa la red de la VM</small></span>
+      <button type="button" class="btn-small" data-act="console">Abrir consola</button></div>` : ''}
+    <div class="acc"><span class="lab"><b>SSH${vbox ? ' · canal de gestión' : ''}</b><small>${hint ? 'desde este equipo, por la red' : vbox ? 'sin tarjeta de gestión: agregue una en «solo anfitrión» (Tarjetas) para entrar por SSH' : 'esperando la IP de la VM…'}</small></span>
+      ${hint ? `<span class="vm-ssh"><code>${esc(hint)}</code><button type="button" class="btn-small" data-act="copyssh">Copiar</button></span>` : ''}</div>
+  </div>`;
 }
 
 function renderVMs() {
@@ -602,7 +619,7 @@ function renderVMs() {
         ${running ? `<span>IP <b class="mono">${vm.ip ? esc(vm.ip) : 'esperando…'}</b></span>` : ''}
       </div>
       ${(vm.networks || []).length ? `<div class="item-meta">${vm.networks.map((n, i) => `<span class="chip ${i ? 'dim' : ''}" title="MAC ${esc(n.mac)}">${i ? '' : '★ '}${esc(n.network)}</span>`).join('')}</div>` : ''}
-      ${hint ? `<div class="vm-ssh"><code title="Desde este equipo, saltando por el hipervisor">${esc(hint)}</code><button type="button" class="btn-small" data-act="copyssh">Copiar</button></div>` : ''}
+      ${running ? vmAccess(vm, hint) : ''}
       <div class="item-actions">
         ${running
           ? '<button type="button" class="btn-small" data-act="stop">Apagar</button>'
@@ -690,6 +707,7 @@ $('#vms-list').addEventListener('click', async e => {
   }
   if (act === 'disks') return toggleDisks(card, name, b);
   if (act === 'start') return vmAction(b, name, 'start', 'Encendiendo…', `VM «${name}» encendida.`);
+  if (act === 'console') return openConsole(b, name);
   if (act === 'stop') {
     const yes = await ask({
       title: 'Apagar VM',
@@ -701,6 +719,16 @@ $('#vms-list').addEventListener('click', async e => {
   }
   if (act === 'delete') return deleteVM(name);
 });
+
+// Abre la ventana de la VM en VirtualBox sin reiniciarla.
+async function openConsole(btn, name) {
+  busy(btn, true, 'Abriendo…');
+  const r = await api('/api/vms/' + encodeURIComponent(name) + '/console', { method: 'POST' });
+  busy(btn, false);
+  if (r.ok && r.data.success) {
+    toast('success', `Consola de «${name}» abierta en VirtualBox. Para cerrarla sin apagar la VM, escoja «Continuar ejecutando en segundo plano».`);
+  } else toast('error', errMsg(r, 'No se abrió la consola'));
+}
 
 async function vmAction(btn, name, action, label, okText) {
   busy(btn, true, label);

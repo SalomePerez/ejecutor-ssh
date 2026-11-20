@@ -273,9 +273,12 @@ func (p *VBoxProvider) vmFromInfo(name string, values map[string]string) VM {
 	if disks := attachedDisks(values); len(disks) > 0 {
 		diskGB, _ = p.mediumInfo(disks[0])
 	}
-	ip := ""
+	ip, mgmtIP := "", ""
 	if status == VMStatusRunning {
 		ip = p.guestIP(name)
+		if t, err := p.managementFromInfo(name, values); err == nil {
+			mgmtIP = t.IP
+		}
 	}
 	user := ""
 	if p.credentials != nil {
@@ -293,6 +296,7 @@ func (p *VBoxProvider) vmFromInfo(name string, values map[string]string) VM {
 		SSHPort:    22,
 		SSHKeyName: name + "-ssh",
 		IP:         ip,
+		MgmtIP:     mgmtIP,
 		Status:     status,
 		Networks:   vboxNics(values),
 	}
@@ -351,6 +355,27 @@ func (p *VBoxProvider) Start(name string) error {
 	}
 	if err != nil {
 		return fmt.Errorf("iniciar VM %s: %w", name, err)
+	}
+	return nil
+}
+
+// OpenConsole abre la ventana de VirtualBox (la consola del hipervisor) de
+// una VM que ya esta encendida, sin reiniciarla: "startvm --type separate"
+// conecta una interfaz grafica a la sesion headless. Es el primer mecanismo
+// de acceso, independiente del SSH: los dos pueden estar abiertos a la vez.
+func (p *VBoxProvider) OpenConsole(name string) error {
+	if err := ValidateName(name); err != nil {
+		return err
+	}
+	values, err := p.info(name)
+	if err != nil {
+		return err
+	}
+	if values["VMState"] != "running" {
+		return fmt.Errorf("%s está apagada: enciéndala primero (la consola se abre sobre la VM en marcha)", name)
+	}
+	if _, err := p.vbox.Run("startvm", name, "--type", "separate"); err != nil {
+		return fmt.Errorf("abrir la consola de %s: %w", name, err)
 	}
 	return nil
 }

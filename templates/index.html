@@ -8,7 +8,7 @@
     // Aplica el tema guardado antes de pintar, para que no parpadee.
     try { const t = localStorage.getItem('theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
   </script>
-  <link rel="stylesheet" href="/static/style.css?v=24">
+  <link rel="stylesheet" href="/static/style.css?v=25">
   <link rel="stylesheet" href="/static/network.css?v=26">
 </head>
 <body>
@@ -93,8 +93,8 @@
                 <small id="vm-distro-help">Se elige sola según la plantilla.</small>
               </div>
               <div class="form-item">
-                <label><input type="checkbox" id="vm-management"> Tarjeta de gestión (para el canal de gestión)</label>
-                <small>Agrega una tarjeta en la red <b>solo anfitrión</b>, configurada por DHCP y sin ruta por defecto. La app puede administrar la red por SSH a esa tarjeta, que nunca se modifica. No hace falta marcar también «solo-anfitrion» en las tarjetas adicionales: esa sería otra tarjeta de datos.</small>
+                <label><input type="checkbox" id="vm-management"> Tarjeta de gestión (opcional: segundo mecanismo de acceso por SSH)</label>
+                <small>Sin ella, la VM se administra por el hipervisor (consola de VirtualBox y Guest Additions), que es lo normal. Con ella, se agrega una tarjeta en la red <b>solo anfitrión</b>, por DHCP y sin ruta por defecto, para entrar también por SSH desde este equipo: así se demuestra que los dos mecanismos son independientes y pueden usarse a la vez. La app nunca modifica esa tarjeta. No hace falta marcar también «solo-anfitrion» en las tarjetas adicionales: esa sería otra tarjeta de datos.</small>
               </div>
               <div class="form-item exp-only">
                 <label><input type="checkbox" id="vm-emulated"> Emulación sin KVM (lenta)</label>
@@ -391,7 +391,7 @@
           <p class="net-lead">El usuario solo decide lo que nadie más puede decidir: interfaz, modo y los datos. Todo lo demás lo resuelve la aplicación, porque son los mismos pasos que hicimos a mano en la práctica de Debian.</p>
           <ol>
             <li><div><b>Lee antes de escribir, y no supone nombres.</b><span>Un solo script, por el canal elegido (Guest Additions o SSH de gestión), lee <code>/etc/os-release</code>, los servicios activos, <code>ip -br link</code>, <code>/sys/class/net</code>, <code>ip -4 addr</code>, <code>ip r</code> y el DNS. De ahí salen el gestor de red, las tarjetas y la columna Actual.</span></div></li>
-            <li><div><b>Un canal que no se corta.</b><span>La app no entra por la interfaz que modifica: le pide a VirtualBox que ejecute los comandos con las Guest Additions, o entra por SSH a una interfaz de gestión que nunca se modifica. Cambiar la IP no corta ese canal; solo se cierran las sesiones SSH de los usuarios hacia la IP vieja.</span></div></li>
+            <li><div><b>Un canal que no se corta.</b><span>La app no entra por la interfaz que modifica: le pide a VirtualBox que ejecute los comandos con las Guest Additions (lo normal), o, si la VM tiene la tarjeta opcional de gestión, entra por SSH a esa interfaz, que nunca se modifica. Cambiar la IP no corta ese canal; solo se cierran las sesiones SSH de los usuarios hacia la IP vieja.</span></div></li>
             <li><div><b>Conoce las redes del hipervisor.</b><span>Desde VirtualBox lee el tipo de red, el rango DHCP y la puerta de enlace. Así rechaza una IP que ya tiene otra VM y advierte si la IP fija cae en el rango que reparte el DHCP.</span></div></li>
             <li><div><b>Varias tarjetas, varias puertas de enlace.</b><span>Cada tarjeta declara si su puerta de enlace es la principal, de respaldo, solo para ciertas redes o ninguna. La pestaña «Rutas resultantes» muestra cuál gana, y la app advierte si quedan dos rutas por defecto con la misma prioridad.</span></div></li>
             <li><div><b>Valida en el servidor.</b><span>La misma lógica decide la vista previa y el aplicar: red y broadcast, puerta de enlace en la subred, IP ocupada, otra red (el error de <code>192.168.10.23</code>). Al aplicar vuelve a leer la VM: nunca confía en una lectura vieja.</span></div></li>
@@ -673,7 +673,7 @@
     </form>
   </dialog>
 
-  <script src="/static/app.js?v=25"></script>
+  <script src="/static/app.js?v=26"></script>
   <script src="/static/network.js?v=26"></script>
   <script src="/static/netcmds.js?v=1"></script>
 </body>

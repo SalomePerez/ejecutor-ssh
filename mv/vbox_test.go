@@ -188,3 +188,26 @@ func TestPlanInternalNetWithoutSubnetHasNoFalseWarning(t *testing.T) {
 		t.Fatalf("debia ser valido: %+v", plan.Checks)
 	}
 }
+
+func TestOpenConsoleAttachesToRunningVM(t *testing.T) {
+	running := &fakeVBox{responses: map[string]string{"showvminfo": debianInfo, "startvm": ""}}
+	if err := NewVBoxProvider(running, nil).OpenConsole("debian-red"); err != nil {
+		t.Fatal(err)
+	}
+	last := strings.Join(running.calls[len(running.calls)-1], " ")
+	if last != "startvm debian-red --type separate" {
+		t.Fatalf("debe abrir la ventana sin reiniciar: %s", last)
+	}
+	stopped := &fakeVBox{responses: map[string]string{
+		"showvminfo": strings.Replace(debianInfo, `VMState="running"`, `VMState="poweroff"`, 1),
+		"startvm":    "",
+	}}
+	if err := NewVBoxProvider(stopped, nil).OpenConsole("debian-red"); err == nil {
+		t.Fatal("con la VM apagada no debe encenderla con ventana")
+	}
+	for _, c := range stopped.calls {
+		if c[0] == "startvm" {
+			t.Fatal("no debe llamar a startvm con la VM apagada")
+		}
+	}
+}
