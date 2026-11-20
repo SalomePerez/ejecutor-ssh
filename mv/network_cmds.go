@@ -236,8 +236,66 @@ func runNetCommand(p netBackend, name string, req NetCmdRequest) (*ApplyResult, 
 		result.Message = name + " NO llega a " + req.Target + ": revise las rutas (ip route get) y que el router tenga el reenvío IPv4 activo."
 	case !result.OK:
 		result.Message = "El comando terminó con error."
+	case d.info.ID == "neigh" || d.info.ID == "arp":
+		if msg := neighHint(step.Lines); msg != "" {
+			result.Message = msg
+			step.Status = "warn"
+			result.Steps = []ApplyStep{step}
+		}
 	}
 	return result, nil
+}
+
+// neighHint explica en palabras lo que la tabla de vecinos (ip neigh o
+// arp -a) dice de malo: entradas sin respuesta ARP o tabla vacia. Vacio si
+// todo esta bien.
+func neighHint(lines []ApplyLine) string {
+	out := ""
+	for _, l := range lines {
+		out += l.Output + "\n"
+	}
+	var failed []string
+	empty := true
+	for _, ln := range strings.Split(out, "\n") {
+		f := strings.Fields(ln)
+		if len(f) == 0 {
+			continue
+		}
+		empty = false
+		bad := strings.Contains(ln, "FAILED") || strings.Contains(ln, "INCOMPLETE") || strings.Contains(ln, "<incomplete>")
+		if !bad || strings.Contains(f[0], ":") { // solo IPv4
+			continue
+		}
+		ip, dev := f[0], ""
+		if strings.HasPrefix(ip, "(") { // arp -a: "? (192.168.20.1) at <incomplete> on enp0s9"
+			ip = ""
+		}
+		for k := 0; k+1 < len(f); k++ {
+			switch f[k] {
+			case "dev", "on":
+				dev = f[k+1]
+			}
+			if strings.HasPrefix(f[k], "(") && strings.HasSuffix(f[k], ")") {
+				ip = strings.Trim(f[k], "()")
+			}
+		}
+		if ip == "" {
+			continue
+		}
+		if dev != "" {
+			ip += " (por " + dev + ")"
+		}
+		failed = append(failed, ip)
+	}
+	switch {
+	case empty:
+		return "La tabla está vacía: la VM todavía no se ha comunicado con ningún equipo de sus redes locales. Haga un ping a un equipo de la red y vuelva a consultar."
+	case len(failed) == 1:
+		return "Nadie respondió por ARP a " + failed[0] + " (FAILED): esa IP no la tiene ningún equipo encendido de esa red, o la tiene uno que está en otra red. Si es una puerta de enlace, la VM no podrá salir por ella: revise la IP del router."
+	case len(failed) > 1:
+		return "Nadie respondió por ARP a: " + strings.Join(failed, ", ") + " (FAILED): esas IP no las tiene ningún equipo encendido de su red. Si alguna es una puerta de enlace, la VM no podrá salir por ella."
+	}
+	return ""
 }
 
 func (p *LibvirtProvider) RunNetCommand(name string, req NetCmdRequest) (*ApplyResult, error) {

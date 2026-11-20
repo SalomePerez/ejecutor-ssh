@@ -99,3 +99,26 @@ func TestNetCommandRejects(t *testing.T) {
 		}
 	}
 }
+
+func TestNeighHint(t *testing.T) {
+	cases := []struct {
+		out, want string
+	}{
+		{"192.168.20.1 dev enp0s9 FAILED \n", "192.168.20.1 (por enp0s9)"},
+		{"10.0.2.2 dev enp0s3 lladdr 52:54:00:12:35:00 STALE\n192.168.10.1 dev enp0s8 INCOMPLETE\nfe80::2 dev enp0s3 FAILED\n", "192.168.10.1 (por enp0s8)"},
+		{"? (192.168.20.1) at <incomplete> on enp0s9\n", "192.168.20.1 (por enp0s9)"},
+		{"", "vacía"},
+		{"10.0.2.2 dev enp0s3 lladdr 52:54:00:12:35:00 REACHABLE\n", ""},
+	}
+	for _, c := range cases {
+		got := neighHint([]ApplyLine{{Output: c.out}})
+		if c.want == "" && got != "" || c.want != "" && !strings.Contains(got, c.want) {
+			t.Errorf("%q: %q (se esperaba %q)", c.out, got, c.want)
+		}
+	}
+	b := &scriptBackend{respond: func(string) (string, int) { return "192.168.20.1 dev enp0s9 FAILED", 0 }}
+	res, err := runNetCommand(b, "lab-a", NetCmdRequest{Cmd: "neigh"})
+	if err != nil || !res.OK || res.Steps[0].Status != "warn" || !strings.Contains(res.Message, "ARP") {
+		t.Fatalf("neigh con FAILED: %v %+v", err, res)
+	}
+}
