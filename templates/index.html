@@ -9,7 +9,7 @@
     try { const t = localStorage.getItem('theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
   </script>
   <link rel="stylesheet" href="/static/style.css?v=24">
-  <link rel="stylesheet" href="/static/network.css?v=24">
+  <link rel="stylesheet" href="/static/network.css?v=26">
 </head>
 <body>
   <main class="shell">
@@ -21,7 +21,7 @@
       </div>
       <nav class="tabs-nav" role="tablist" aria-label="Módulos">
         <button class="tab-btn active" data-tab="vms" role="tab" aria-selected="true">Máquinas virtuales</button>
-        <button class="tab-btn" data-tab="commands" role="tab" aria-selected="false">Comandos</button>
+        <button class="tab-btn" data-tab="commands" role="tab" aria-selected="false" title="Comandos por SSH en un equipo (no en las VMs)">Comandos remotos (equipo)</button>
         <button class="tab-btn" data-tab="keys" role="tab" aria-selected="false">Llaves SSH</button>
         <button class="tab-btn" data-tab="users" role="tab" aria-selected="false">Usuarios</button>
         <button class="tab-btn" data-tab="config" role="tab" aria-selected="false">Configuración</button>
@@ -41,7 +41,8 @@
         <div class="vm-subtabs" role="tablist" aria-label="Módulo de máquinas virtuales">
           <button type="button" role="tab" data-vmtab="manage" aria-selected="true">Máquinas</button>
           <button type="button" role="tab" data-vmtab="nets" aria-selected="false">Redes virtuales</button>
-          <button type="button" role="tab" data-vmtab="net" aria-selected="false">Red</button>
+          <button type="button" role="tab" data-vmtab="net" aria-selected="false" title="Cambiar la configuración de las interfaces: IP fija, DHCP, IP adicional, puerta de enlace, DNS">Configuración de red</button>
+          <button type="button" role="tab" data-vmtab="cmds" aria-selected="false" title="Consultar y diagnosticar la red: rutas, ping, conexiones, puertos, ARP, captura">Comandos de red</button>
           <button type="button" role="tab" data-vmtab="docs" aria-selected="false">Documentación</button>
         </div>
       </div>
@@ -109,7 +110,7 @@
                 <div class="form-item">
                   <span class="label">Tarjetas adicionales <span class="opt">(opcional)</span></span>
                   <div class="net-extra-list" id="vm-net-extra"><small>No hay otras redes. Créelas en <a href="#" data-vmtab-go="nets">Redes virtuales</a>.</small></div>
-                  <small>Quedan sin IP: se configuran después en <b>Red</b>.</small>
+                  <small>Quedan sin IP: se configuran después en <b>Configuración de red</b>.</small>
                 </div>
               </fieldset>
               <div class="form-item">
@@ -146,7 +147,7 @@
                   <small>Un disco <b>compartido</b> puede conectarse a varias VMs; no lo uses como disco del sistema.</small>
                 </div>
               </details>
-              <div class="notice info"><span>ⓘ</span><span>La VM queda <b>encendida</b> en su primer arranque: cloud-init crea el usuario (el de <b>Configuración → vbox.guest.user</b>), instala la llave y las Guest Additions. El panel de <b>Red</b> estará disponible en unos 3–5 minutos.</span></div>
+              <div class="notice info"><span>ⓘ</span><span>La VM queda <b>encendida</b> en su primer arranque: cloud-init crea el usuario (el de <b>Configuración → vbox.guest.user</b>), instala la llave y las Guest Additions. El panel de <b>Configuración de red</b> estará disponible en unos 3–5 minutos.</span></div>
               <button type="submit" class="btn-primary" id="vm-create-btn">Crear VM</button>
             </form>
             <div id="vm-create-status" class="status-box" role="status"></div>
@@ -200,7 +201,7 @@
         </div>
       </div>
 
-      <!-- ---------- Sub-pestaña: Red (lista de VMs + panel, como el prototipo) ---------- -->
+      <!-- ---------- Sub-pestaña: Configuración de red (lista de VMs + panel) ---------- -->
       <div class="vm-pane" id="vm-pane-net" role="tabpanel" hidden>
         <div class="net-layout">
           <aside class="net-vms" aria-label="Máquinas virtuales">
@@ -211,7 +212,7 @@
 
           <section class="net-panel" id="net-panel" aria-labelledby="net-title">
             <div class="net-head">
-              <h2 id="net-title">Red</h2>
+              <h2 id="net-title">Configuración de red</h2>
               <label class="net-channel">Canal
                 <select id="net-channel" title="Por dónde entra la app a la VM para leer y cambiar su red">
                   <option value="">Canal interno · Guest Additions (sin red)</option>
@@ -277,7 +278,7 @@
                 <div class="net-ptabs" role="tablist">
                   <button type="button" role="tab" id="net-t-file" aria-selected="true">Archivo resultante</button>
                   <button type="button" role="tab" id="net-t-cmd" aria-selected="false">Comandos</button>
-                  <button type="button" role="tab" id="net-t-route" aria-selected="false">Tabla de rutas</button>
+                  <button type="button" role="tab" id="net-t-route" aria-selected="false" title="Cómo quedaría la tabla de rutas después del cambio. La tabla actual se consulta en Comandos de red">Rutas resultantes</button>
                 </div>
                 <div id="net-preview"></div>
                 <details class="net-learn" id="net-L-prev"><summary><span class="lt">Para entender</span><span class="net-ls"></span></summary><div class="net-lb"></div></details>
@@ -298,6 +299,37 @@
         </div>
       </div>
 
+      <!-- ---------- Sub-pestaña: Comandos de red (consulta y diagnóstico) ---------- -->
+      <div class="vm-pane" id="vm-pane-cmds" role="tabpanel" hidden>
+        <div class="net-layout">
+          <aside class="net-vms" aria-label="Máquinas virtuales">
+            <h3>Máquinas virtuales</h3>
+            <div id="nc-vmlist" class="net-vmlist"><p class="placeholder">Cargando…</p></div>
+            <p class="net-vms-hint">Estos comandos solo consultan: no cambian la configuración de la VM. Para cambiarla, use «Configuración de red».</p>
+          </aside>
+
+          <section class="net-panel" id="nc-panel" aria-labelledby="nc-title">
+            <div class="net-head">
+              <h2 id="nc-title">Comandos de red</h2>
+              <label class="net-channel">Canal
+                <select id="nc-channel" title="Por dónde entra la app a la VM para ejecutar el comando">
+                  <option value="">Canal interno · Guest Additions (sin red)</option>
+                  <option value="gestion">Canal de gestión · SSH a la tarjeta de gestión</option>
+                </select>
+              </label>
+            </div>
+            <div class="nc-body">
+              <p class="net-help">Escoja un comando. La app arma la línea, la ejecuta dentro de la VM y muestra la salida tal cual. No se escriben comandos libres: solo los de esta lista, con un destino, una interfaz o un filtro validados.</p>
+              <div class="nc-catalog" id="nc-catalog"></div>
+              <form class="nc-params" id="nc-params" novalidate></form>
+              <details class="net-learn" id="nc-learn" open><summary><span class="lt">Para entender</span><span class="net-ls"></span></summary><div class="net-lb"></div></details>
+              <pre class="net-term" id="nc-out" aria-live="polite" hidden></pre>
+              <div id="nc-result"></div>
+            </div>
+          </section>
+        </div>
+      </div>
+
       <!-- ---------- Sub-pestaña: Documentación ---------- -->
       <div class="vm-pane" id="vm-pane-docs" role="tabpanel" hidden>
         <div class="form-section net-docs" id="net-docs">
@@ -311,10 +343,10 @@
           </div>
 
           <div class="net-dpane" id="net-d-manual" role="tabpanel">
-            <p class="net-lead">Cómo cambiar la red de una VM sin perder el acceso. Deslice las tarjetas o use las flechas. En el panel de Red, cada paso tiene un recuadro <b>Para entender</b> que se abre con un clic.</p>
+            <p class="net-lead">Cómo cambiar la red de una VM sin perder el acceso. Deslice las tarjetas o use las flechas. En el panel de Configuración de red, cada paso tiene un recuadro <b>Para entender</b> que se abre con un clic.</p>
             <div class="net-carousel">
               <div class="net-track" id="net-mtrack" tabindex="0" aria-label="Pasos del manual">
-                <article class="net-card"><span class="no">1</span><h4>Escoja la VM</h4><p>En la sub-pestaña Red, a la izquierda, o con el botón «Red» de cada VM. Tiene que estar encendida: la app lee su red por el canal interno (Guest Additions en VirtualBox). Lo que leyó está en «Ver lo que leyó la app». Todavía no escribe nada.</p></article>
+                <article class="net-card"><span class="no">1</span><h4>Escoja la VM</h4><p>En la sub-pestaña Configuración de red, a la izquierda, o con el botón «Configurar red» de cada VM. Tiene que estar encendida: la app lee su red por el canal interno (Guest Additions en VirtualBox). Lo que leyó está en «Ver lo que leyó la app». Todavía no escribe nada.</p></article>
                 <article class="net-card"><span class="no">2</span><h4>Paso 1 · Interfaz</h4><p>Aparecen todas las tarjetas que la app encontró. Las etiquetas dicen cuál tiene la ruta por defecto, de qué red del hipervisor es y cuáles son virtuales (Docker, VPN…), que no se configuran desde aquí. Si hay varias tarjetas, configúrelas una a la vez.</p></article>
                 <article class="net-card"><span class="no">3</span><h4>Paso 2 · Modo</h4><p><i>DHCP</i> si en esa red hay un servidor que entregue los datos (en la NAT de VirtualBox, el propio VirtualBox). <i>IP fija</i> para servidores. <i>IP adicional</i> para sumar una dirección sin quitar la actual.</p></article>
                 <article class="net-card"><span class="no">4</span><h4>Paso 3 · Los datos</h4><p>IP, máscara, puerta de enlace y DNS. En <i>Uso de la puerta de enlace</i> decida su papel: principal (una sola), respaldo, solo hacia ciertas redes o ninguna. La app valida contra la VM y contra las redes del hipervisor: mientras haya algo en rojo, Aplicar no se activa.</p></article>
@@ -323,7 +355,7 @@
                 <article class="net-card"><span class="no">7</span><h4>Si algo falla</h4><p>No hay que hacer nada: la app dispara la reversión y la VM vuelve a la configuración anterior. Si se perdiera la conexión con la app, la VM vuelve sola cuando venza el temporizador. Como último recurso, la consola de la VM en el hipervisor y el respaldo <code>.bak</code>.</p></article>
                 <article class="net-card read"><span class="no">+</span><h4>Para leer antes de usarla</h4>
                   <ul>
-                    <li>El manual de la distribución de la VM: en <a href="#" data-dtab="distro">Manuales por distribución</a> y también debajo del nombre de la VM, en el panel de Red.</li>
+                    <li>El manual de la distribución de la VM: en <a href="#" data-dtab="distro">Manuales por distribución</a> y también debajo del nombre de la VM, en el panel de Configuración de red.</li>
                     <li><a data-ref="maniproute">ip-route(8)</a> y <a data-ref="manipaddr">ip-address(8)</a>: en la VM, <code>man 8 ip-route</code>.</li>
                     <li><a data-ref="rfc1122">RFC 1122</a>: lo que necesita un equipo para estar en una red IP.</li>
                   </ul>
@@ -339,7 +371,7 @@
           </div>
 
           <div class="net-dpane" id="net-d-distro" role="tabpanel" hidden>
-            <p class="net-lead">Cada distribución configura la red con su propia herramienta y tiene su propio manual oficial. La de la VM abierta en Red aparece resaltada.</p>
+            <p class="net-lead">Cada distribución configura la red con su propia herramienta y tiene su propio manual oficial. La de la VM abierta en Configuración de red aparece resaltada.</p>
             <div class="net-distros" id="net-distros"></div>
           </div>
 
@@ -361,7 +393,7 @@
             <li><div><b>Lee antes de escribir, y no supone nombres.</b><span>Un solo script, por el canal elegido (Guest Additions o SSH de gestión), lee <code>/etc/os-release</code>, los servicios activos, <code>ip -br link</code>, <code>/sys/class/net</code>, <code>ip -4 addr</code>, <code>ip r</code> y el DNS. De ahí salen el gestor de red, las tarjetas y la columna Actual.</span></div></li>
             <li><div><b>Un canal que no se corta.</b><span>La app no entra por la interfaz que modifica: le pide a VirtualBox que ejecute los comandos con las Guest Additions, o entra por SSH a una interfaz de gestión que nunca se modifica. Cambiar la IP no corta ese canal; solo se cierran las sesiones SSH de los usuarios hacia la IP vieja.</span></div></li>
             <li><div><b>Conoce las redes del hipervisor.</b><span>Desde VirtualBox lee el tipo de red, el rango DHCP y la puerta de enlace. Así rechaza una IP que ya tiene otra VM y advierte si la IP fija cae en el rango que reparte el DHCP.</span></div></li>
-            <li><div><b>Varias tarjetas, varias puertas de enlace.</b><span>Cada tarjeta declara si su puerta de enlace es la principal, de respaldo, solo para ciertas redes o ninguna. La pestaña «Tabla de rutas» muestra cuál gana, y la app advierte si quedan dos rutas por defecto con la misma prioridad.</span></div></li>
+            <li><div><b>Varias tarjetas, varias puertas de enlace.</b><span>Cada tarjeta declara si su puerta de enlace es la principal, de respaldo, solo para ciertas redes o ninguna. La pestaña «Rutas resultantes» muestra cuál gana, y la app advierte si quedan dos rutas por defecto con la misma prioridad.</span></div></li>
             <li><div><b>Valida en el servidor.</b><span>La misma lógica decide la vista previa y el aplicar: red y broadcast, puerta de enlace en la subred, IP ocupada, otra red (el error de <code>192.168.10.23</code>). Al aplicar vuelve a leer la VM: nunca confía en una lectura vieja.</span></div></li>
             <li><div><b>No pelea con cloud-init.</b><span>En Ubuntu escribe su propio <code>90-ejecutor-…yaml</code> en vez de editar <code>50-cloud-init.yaml</code>, y apaga la red de cloud-init para que el cambio sobreviva al reinicio.</span></div></li>
             <li><div><b>Respaldo y reversión automática.</b><span>Antes de escribir respalda y programa con <code>systemd-run</code> la restauración dentro de la VM. Si la verificación pasa, la cancela; si falla, la dispara de inmediato.</span></div></li>
@@ -641,7 +673,8 @@
     </form>
   </dialog>
 
-  <script src="/static/app.js?v=24b"></script>
-  <script src="/static/network.js?v=25"></script>
+  <script src="/static/app.js?v=25"></script>
+  <script src="/static/network.js?v=26"></script>
+  <script src="/static/netcmds.js?v=1"></script>
 </body>
 </html>

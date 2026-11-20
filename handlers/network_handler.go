@@ -45,13 +45,13 @@ type networkReadResponse struct {
 	RevertSeconds int          `json:"revertSeconds"`
 }
 
-// networkRoute reconoce /api/vms/{nombre}/network[/plan|/apply|/forwarding|/test].
+// networkRoute reconoce /api/vms/{nombre}/network[/plan|/apply|/forwarding|/test|/cmd].
 func networkRoute(path string) (name, action string, ok bool) {
 	rest := strings.TrimPrefix(path, "/api/vms/")
 	if rest == path {
 		return "", "", false
 	}
-	for _, a := range []string{"/network/plan", "/network/apply", "/network/forwarding", "/network/test", "/network"} {
+	for _, a := range []string{"/network/plan", "/network/apply", "/network/forwarding", "/network/test", "/network/cmd", "/network"} {
 		if strings.HasSuffix(rest, a) {
 			return strings.TrimSuffix(rest, a), strings.TrimPrefix(a, "/network"), true
 		}
@@ -125,6 +125,26 @@ func (h *VMHandler) serveNetwork(w http.ResponseWriter, r *http.Request, name, a
 			return
 		}
 		result, err := np.TestConnectivity(name, req.Target)
+		if err != nil {
+			writeVMResponse(w, http.StatusBadRequest, vmResponse{Success: false, Error: err.Error()})
+			return
+		}
+		writeVMResponse(w, http.StatusOK, vmResponse{Success: result.OK, Message: result.Message, Data: result})
+
+	case action == "/cmd" && r.Method == http.MethodPost:
+		// Comandos de red: solo consulta y diagnostico, del catalogo.
+		cp, ok := np.(vm.NetCommandProvider)
+		if !ok {
+			writeVMResponse(w, http.StatusNotImplemented, vmResponse{Success: false, Error: "este canal no ejecuta comandos de red"})
+			return
+		}
+		var req vm.NetCmdRequest
+		r.Body = http.MaxBytesReader(w, r.Body, 1024)
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeVMResponse(w, http.StatusBadRequest, vmResponse{Success: false, Error: "JSON inválido"})
+			return
+		}
+		result, err := cp.RunNetCommand(name, req)
 		if err != nil {
 			writeVMResponse(w, http.StatusBadRequest, vmResponse{Success: false, Error: err.Error()})
 			return

@@ -72,6 +72,8 @@ func (h *VMHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.listTemplates(w, r)
 	case r.Method == http.MethodGet && path == "/api/hypervisor":
 		h.hostInfo(w, r)
+	case r.Method == http.MethodGet && path == "/api/netcmds":
+		writeVMResponse(w, http.StatusOK, vmResponse{Success: true, Data: map[string]interface{}{"commands": vm.NetCommands(), "filters": vm.TcpdumpFilters()}})
 	case strings.HasPrefix(path, "/api/networks"):
 		h.serveNetworks(w, r, strings.Trim(strings.TrimPrefix(path, "/api/networks"), "/"))
 	case strings.HasPrefix(path, "/api/vms/") && strings.Contains(path, "/interfaces"):

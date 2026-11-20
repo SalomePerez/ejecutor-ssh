@@ -1,6 +1,7 @@
 // ============================================================
 // Ejecutor SSH — logica de la interfaz
-// Modulos: VMs (lista y creacion; la Red vive en network.js), Comandos,
+// Modulos: VMs (lista y creacion; la configuracion de red vive en network.js y
+// los comandos de red en netcmds.js), Comandos remotos (equipo),
 // Llaves SSH, Usuarios y Configuracion. Avisos con toast() y dialogos con
 // ask(), en lugar de alert/confirm/prompt del navegador.
 // ============================================================
@@ -606,7 +607,8 @@ function renderVMs() {
         ${running
           ? '<button type="button" class="btn-small" data-act="stop">Apagar</button>'
           : '<button type="button" class="btn-small go" data-act="start">Encender</button>'}
-        <button type="button" class="btn-small" data-act="net"${running ? '' : ' disabled title="Encienda la VM: la red se lee por el canal interno"'}>Red</button>
+        <button type="button" class="btn-small" data-act="net"${running ? '' : ' disabled title="Encienda la VM: la red se lee por el canal interno"'}>Configurar red</button>
+        <button type="button" class="btn-small" data-act="cmds"${running ? '' : ' disabled title="Encienda la VM: los comandos corren dentro de ella"'}>Comandos de red</button>
         <button type="button" class="btn-small" data-act="disks" aria-expanded="false">Discos</button>
         <button type="button" class="btn-small" data-act="nics" aria-expanded="false">Tarjetas</button>
         <button type="button" class="btn-small" data-act="edit" aria-expanded="false">Editar</button>
@@ -675,6 +677,7 @@ $('#vms-list').addEventListener('click', async e => {
 
   if (act === 'copyssh') return copyText(sshHint(vm), 'Comando SSH');
   if (act === 'net') return window.openNetwork(name);
+  if (act === 'cmds') return window.openNetCmds(name);
   if (act === 'nics') return toggleNics(card, vm, b);
   if (act === 'nic-del') return detachNic(vm, b.dataset.mac, b.dataset.net);
   if (act === 'nic-add') return attachNic(card, vm, b);
@@ -750,7 +753,7 @@ function toggleNics(card, vm, btn) {
     </div>`).join('') : '<small>La VM no tiene tarjetas de red.</small>'}</div>
     <div class="nic-add"><select aria-label="Red para la nueva tarjeta">${vnetCache.map(n => `<option value="${esc(n.name)}">${esc(n.name)} · ${esc(NET_MODES[n.mode] || n.mode)} · ${esc(n.subnet || '')}</option>`).join('')}</select>
       <button type="button" class="btn-small go" data-act="nic-add">+ Agregar tarjeta</button></div>
-    <small>${vm.status === 'running' ? '<b>Apague la VM</b> para agregar o quitar tarjetas: VirtualBox no lo permite con la VM encendida.' : 'La tarjeta aparecerá al encender la VM.'} Configure su IP en <b>Red</b>.</small>`;
+    <small>${vm.status === 'running' ? '<b>Apague la VM</b> para agregar o quitar tarjetas: VirtualBox no lo permite con la VM encendida.' : 'La tarjeta aparecerá al encender la VM.'} Configure su IP en <b>Configuración de red</b>.</small>`;
   panel.hidden = false;
   if (!vnetCache.length) loadVirtualNetworks().then(() => { if (!panel.hidden) { panel.hidden = true; toggleNics(card, vm, btn); } });
 }
@@ -1047,11 +1050,13 @@ window.addEventListener('DOMContentLoaded', async () => {
   await loadConfig();
   loadTemplates();
   loadVirtualNetworks();
-  // Enlace directo: #vms/red/<vm> abre el panel de Red de esa VM.
+  // Enlace directo: #vms/red/<vm> abre la configuracion de red de esa VM y
+  // #vms/comandos/<vm>, sus comandos de red.
   const [start, sub, vmName] = decodeURIComponent((location.hash || '').slice(1) || store.get('tab', 'vms')).split('/');
   showTab(start);
   if (start !== 'vms') listVMs({ quiet: true }); // la pastilla del hipervisor siempre se actualiza
   if (start === 'vms' && sub === 'red' && vmName) window.openNetwork(vmName);
+  else if (start === 'vms' && sub === 'comandos' && vmName) window.openNetCmds(vmName);
   else if (start === 'vms' && sub === 'docs') window.showVmTab('docs');
   window.addEventListener('hashchange', () => showTab(location.hash.slice(1).split('/')[0]));
 });

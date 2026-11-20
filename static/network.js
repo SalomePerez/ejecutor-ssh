@@ -144,7 +144,7 @@
       cmd: P('Por qué cada fase.', '<code>arping -D</code> comprueba que la IP esté libre ' + R('rfc5227') + '. ' + R('mansystemdrun') + ' programa la vuelta atrás dentro de la VM. La verificación lee el estado real con ' + R('manipaddr') + ' y ' + R('maniproute') + '. Las líneas marcadas <i>hipervisor</i> se ejecutan en el host, no en la VM.'),
       route: P('Cómo elige el kernel.', 'Gana la ruta más específica (prefijo más largo); si empatan, la de menor métrica ' + R('rfc1812', 'RFC 1812 §5.2.4.3') + ' ' + R('rfc4632') + '. Las líneas <code>proto kernel scope link</code> las crea el kernel por tener una IP en esa red.')
     }[S.tab];
-    setL('net-L-prev', { file: 'cómo se lee este archivo', cmd: 'por qué cada fase', route: 'cómo elige el kernel la ruta' }[S.tab], txt);
+    setL('net-L-prev', { file: 'cómo se lee este archivo', cmd: 'por qué cada fase', route: 'cómo elige el kernel la ruta (rutas resultantes)' }[S.tab], txt);
   }
 
   // ---------- render ----------
@@ -157,7 +157,7 @@
   }
   function renderHead() {
     const st = S.state;
-    $('#net-title').textContent = 'Red de ' + S.vm;
+    $('#net-title').textContent = 'Configuración de red de ' + S.vm;
     const channel = st.channel || (st.hypervisor === 'VirtualBox' ? 'el canal interno (Guest Additions)' : 'el canal interno (agente QEMU)');
     $('#net-detect').innerHTML = 'Detectado por ' + channel + ': ' +
       `<span class="net-chip">${esc(st.os || 'sistema desconocido')}</span><span class="net-chip">${esc(st.managerName || 'gestor no reconocido')}</span>` +
@@ -165,17 +165,6 @@
       (st.cloudInit ? '<span class="net-chip dim">cloud-init</span>' : '') +
       ` <button type="button" class="btn-small" id="net-fwd" title="net.ipv4.ip_forward: la VM pasa paquetes entre sus interfaces">${st.forwarding ? 'Desactivar reenvío' : 'Activar reenvío (router)'}</button>`;
     $('#net-fwd').onclick = toggleForwarding;
-    // Probar conectividad: ping, ip route get y tracepath desde la VM.
-    let conn = $('#net-conn');
-    if (!conn) {
-      conn = document.createElement('form');
-      conn.id = 'net-conn';
-      conn.className = 'net-conn';
-      conn.innerHTML = '<label>Probar conectividad desde la VM: <input id="net-conn-target" placeholder="192.168.20.10" autocomplete="off" spellcheck="false" aria-label="IP o nombre de destino"></label> ' +
-        '<button type="submit" class="btn-small">Probar (ping)</button><pre id="net-conn-out" class="net-conn-out" hidden></pre>';
-      $('#net-detect').after(conn);
-      conn.addEventListener('submit', testConnectivity);
-    }
     $('#net-distline').innerHTML = 'Manual de ' + esc(distro().name) + ': ' + distroRefs();
     $('#net-raw').innerHTML = st.raw.map(c => `<span class="k2">$ ${esc(c.cmd)}</span>\n<span class="o">${esc(c.output)}</span>`).join('\n');
   }
@@ -325,29 +314,6 @@
     else { btn.disabled = false; renderHead(); }
   }
 
-  async function testConnectivity(e) {
-    e.preventDefault();
-    const target = $('#net-conn-target').value.trim();
-    const out = $('#net-conn-out');
-    if (!target) return;
-    const btn = e.submitter || $('#net-conn button');
-    btn.disabled = true;
-    out.hidden = false;
-    out.className = 'net-conn-out';
-    out.textContent = 'Probando ' + target + ' desde ' + S.vm + '…';
-    let data;
-    try {
-      const r = await fetch('/api/vms/' + encodeURIComponent(S.vm) + '/network/test' + qs(), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target }) });
-      data = await r.json();
-    } catch (err) {
-      data = { success: false, error: err.message };
-    }
-    btn.disabled = false;
-    const lines = ((data.data && data.data.steps) || []).flatMap(s => s.lines).map(l => '$ ' + l.cmd + (l.output ? '\n' + l.output : '')).join('\n\n');
-    out.className = 'net-conn-out ' + (data.success ? 'ok' : 'bad');
-    out.textContent = (data.message || data.error || 'error') + (lines ? '\n\n' + lines : '');
-  }
-
   async function apply() {
     if (!S.plan || !S.plan.valid || S.busy) return;
     S.busy = true;
@@ -389,13 +355,14 @@
   // ---------- sub-pestanas del modulo de VMs ----------
   function showVmTab(name) {
     document.querySelectorAll('.vm-subtabs [data-vmtab]').forEach(b => b.setAttribute('aria-selected', b.dataset.vmtab === name));
-    ['manage', 'nets', 'net', 'docs'].forEach(k => { $('#vm-pane-' + k).hidden = k !== name; });
+    ['manage', 'nets', 'net', 'cmds', 'docs'].forEach(k => { $('#vm-pane-' + k).hidden = k !== name; });
     if (name === 'net') renderVmList();
+    if (name === 'cmds' && typeof window.netCmdsShow === 'function') window.netCmdsShow();
     if (name === 'nets' && typeof window.loadVirtualNetworks === 'function') window.loadVirtualNetworks();
     if (name === 'docs') { renderDistros(); carousel(); }
   }
 
-  // Lista de VMs a la izquierda del panel de Red, como en el prototipo.
+  // Lista de VMs a la izquierda del panel de Configuracion de red.
   async function renderVmList() {
     const box = $('#net-vmlist');
     try {
@@ -436,7 +403,7 @@
       S.vm = name; S.state = null; S.plan = null; S.mode = 'static'; S.tab = 'file';
       history.replaceState(null, '', '#vms/red/' + encodeURIComponent(name));
       document.querySelectorAll('#net-vmlist .net-vm').forEach(b => b.setAttribute('aria-pressed', b.dataset.vm === name));
-      $('#net-title').textContent = 'Red de ' + name;
+      $('#net-title').textContent = 'Configuración de red de ' + name;
       $('#net-body').hidden = true;
       $('#net-run').hidden = true;
       $('#net-loading').hidden = false;
@@ -484,7 +451,7 @@
       `<div class="net-help">${giveUp ? 'Se dejó de reintentar.' : 'Se reintenta solo cada 15 s.'} Tiempo esperando: <span id="net-elapsed">${elapsed()}</span></div></div></div>` +
       `<div class="net-causes">
         <div><b>¿Acaba de encender o crear la VM?</b> Es normal: en el primer arranque cloud-init instala las Guest Additions y tarda de 3 a 7 minutos, más si el equipo anda corto de memoria.</div>
-        <div><b>¿Tiene interfaz de gestión?</b> Ese canal (3) suele estar listo antes: elíjalo arriba, en <b>Canal</b>.</div>
+        <div><b>¿Tiene interfaz de gestión?</b> El canal de gestión (SSH) suele estar listo antes: elíjalo arriba, en <b>Canal</b>.</div>
       </div>
       <div class="net-actions">
         <button type="button" class="btn-secondary" data-net-retry>Reintentar ahora</button>

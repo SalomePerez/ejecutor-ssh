@@ -37,7 +37,7 @@ func (router *APIRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		router.keysHandler.ServeHTTP(w, r)
 	} else if strings.HasPrefix(path, "/api/users") {
 		router.usersHandler.ServeHTTP(w, r)
-	} else if strings.HasPrefix(path, "/api/vms") || strings.HasPrefix(path, "/api/networks") || path == "/api/templates" || path == "/api/hypervisor" {
+	} else if strings.HasPrefix(path, "/api/vms") || strings.HasPrefix(path, "/api/networks") || path == "/api/templates" || path == "/api/netcmds" || path == "/api/hypervisor" {
 		router.vmHandler.ServeHTTP(w, r)
 	} else {
 		http.NotFound(w, r)

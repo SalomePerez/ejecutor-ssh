@@ -18,9 +18,9 @@ Equipo físico (Windows)
 - **Máquinas virtuales**: crear desde plantillas (imágenes oficiales de nube con cloud-init), encender, apagar, editar CPU y memoria, renombrar, eliminar, discos adicionales y compartidos.
 - **Tarjetas de red**: agregar o quitar tarjetas (hasta 8; con la VM apagada) en NAT, puente, solo anfitrión, red interna o red NAT.
 - **Redes virtuales**: listar las redes de VirtualBox y crear redes internas (con o sin DHCP) y redes NAT.
-- **Panel de Red**: lee la red real de la VM, detecta el gestor (ifupdown, Netplan, NetworkManager, systemd-networkd), valida, muestra el archivo y los comandos que va a ejecutar, y aplica con respaldo y **reversión automática** si algo falla.
-- **Reenvío IPv4** (la VM como router) y **prueba de conectividad** (ping, `ip route get`, `tracepath`) desde la VM.
-- Módulos heredados: comandos remotos, llaves SSH, usuarios de Windows y configuración.
+- **Configuración de red** (cambia la VM): lee la red real de la VM, detecta el gestor (ifupdown, Netplan, NetworkManager, systemd-networkd), y configura IP fija, DHCP o IP adicional, puerta de enlace y DNS de cada interfaz. Valida, muestra el archivo, los comandos y las rutas resultantes, y aplica con respaldo y **reversión automática** si algo falla. Incluye el **reenvío IPv4** (la VM como router).
+- **Comandos de red** (solo consulta y diagnóstico, no cambia nada): tabla de rutas (`ip route`), direcciones (`ip addr`), vecinos ARP (`ip neigh`, `arp -a`), puertos en escucha (`ss -tulnp`), conexiones (`ss -tan`, `netstat -ant`), `ping`, `tracepath` y captura de paquetes (`tcpdump`). Se escoge el comando de un catálogo; no se escriben comandos libres.
+- Módulos heredados: comandos remotos en un equipo (SSH), llaves SSH, usuarios de Windows y configuración.
 
 ## Canales de administración
 
@@ -34,7 +34,7 @@ Cambiar la IP de una VM por SSH a esa misma IP corta la sesión. La app usa cana
 
 - El canal interno (Guest Additions) es el equivalente en VirtualBox de `qemu-guest-agent` (el canal del diseño anterior con libvirt).
 - En el canal de gestión (SSH) la IP de gestión se obtiene del servidor DHCP de VirtualBox (`dhcpserver findlease`), sin depender de las Guest Additions; con ese canal el plan **no permite modificar la interfaz de gestión**. Funciona igual con un equipo físico que tenga una interfaz de gestión.
-- En el panel de Red se elige el canal; en la API es el parámetro `?canal=gestion`.
+- En los paneles de Configuración de red y Comandos de red se elige el canal; en la API es el parámetro `?canal=gestion`.
 
 ## Crear una VM
 
@@ -134,6 +134,8 @@ $env:VBOX_LIVE=1; go test ./mv -run Live -v
 | `POST /api/vms/{vm}/network/apply` | aplicar con respaldo, verificación y reversión |
 | `POST /api/vms/{vm}/network/forwarding` `{"enabled":true}` | reenvío IPv4 persistente |
 | `POST /api/vms/{vm}/network/test` `{"target":"192.168.20.10"}` | ping, `ip route get`, `tracepath` |
+| `GET /api/netcmds` | catálogo de comandos de red y filtros de captura |
+| `POST /api/vms/{vm}/network/cmd` `{"cmd":"route"}` | ejecuta un comando del catálogo: `addr`, `route`, `neigh`, `arp`, `ss`, `conns`, `netstat`, `ping` y `tracepath` (con `target`), `tcpdump` (con `iface`, `count` 1-50, `filter`) |
 
 Las rutas `/network*` aceptan `?canal=gestion` para usar el canal de gestión.
 
@@ -151,8 +153,9 @@ mv/
   mgmt_channel.go       canal de gestión: SSH por la interfaz de gestión
   network*.go           detección, plan por gestor de red, aplicación con reversión,
                         reenvío IPv4 y prueba de conectividad (comunes a los proveedores)
+  network_cmds.go       catálogo de Comandos de red (consulta y diagnóstico)
   libvirt*.go, guestagent.go   proveedor anterior (libvirt + qemu-guest-agent)
-static/, templates/     interfaz web
+static/, templates/     interfaz web (network.js: Configuración de red; netcmds.js: Comandos de red)
 ```
 
 ## Seguridad

@@ -245,12 +245,20 @@ a.net-fn:hover { color: var(--teal); }
 .net-raw[open] { display: grid; gap: 8px; }
 .net-detect .net-chip, .net-distline a { max-width: 100%; }
 
-/* Probar conectividad (panel de Red) */
-.net-conn { margin: .6rem 0; display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
-.net-conn input { width: 14rem; max-width: 100%; }
-.net-conn-out { flex-basis: 100%; margin: 0; padding: .6rem .8rem; border-radius: 8px; white-space: pre-wrap; font-size: .82rem; max-height: 22rem; overflow: auto; border-left: 4px solid #888; background: rgba(127,127,127,.08); }
-.net-conn-out.ok { border-left-color: #2e9d5b; }
-.net-conn-out.bad { border-left-color: #d0453a; }
+/* Comandos de red (consulta y diagnostico) */
+.nc-body { padding: 16px 20px 22px; display: grid; gap: 16px; }
+.nc-catalog { display: grid; gap: 12px; }
+.nc-group h4 { margin: 0 0 6px; font-size: .76rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.nc-cmds { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.nc-cmd { text-align: left; display: grid; gap: 3px; justify-items: start; align-content: start; padding: 9px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--sunk); color: var(--ink); font: inherit; cursor: pointer; min-width: 0; }
+.nc-cmd code { font-family: ui-monospace, 'Cascadia Mono', Consolas, Menlo, monospace; font-size: .78rem; color: var(--muted); overflow-wrap: anywhere; }
+.nc-cmd[aria-pressed="true"] { border-color: var(--teal); background: color-mix(in srgb, var(--teal) 12%, transparent); }
+.nc-cmd[aria-pressed="true"] b { color: var(--teal); }
+.nc-params { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: end; }
+.nc-param { display: grid; gap: 4px; font-size: .85rem; color: var(--muted); }
+.nc-param input, .nc-param select { min-width: 0; width: 15rem; max-width: 100%; }
+.nc-param input[type="number"] { width: 6rem; }
+.net-result.warn { border: 1px solid var(--warning); background: color-mix(in srgb, var(--warning) 10%, transparent); }
 
 .net-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; }
 .net-channel { display: inline-flex; align-items: center; gap: .4rem; font-size: .85rem; }
