@@ -92,8 +92,8 @@
                 <small id="vm-distro-help">Se elige sola según la plantilla.</small>
               </div>
               <div class="form-item">
-                <label><input type="checkbox" id="vm-management"> Interfaz de gestión (canal 3)</label>
-                <small>Agrega una tarjeta en la red <b>solo anfitrión</b>, configurada por DHCP y sin ruta por defecto. La app puede administrar la red por SSH a esa tarjeta, que nunca se modifica.</small>
+                <label><input type="checkbox" id="vm-management"> Tarjeta de gestión (para el canal de gestión)</label>
+                <small>Agrega una tarjeta en la red <b>solo anfitrión</b>, configurada por DHCP y sin ruta por defecto. La app puede administrar la red por SSH a esa tarjeta, que nunca se modifica. No hace falta marcar también «solo-anfitrion» en las tarjetas adicionales: esa sería otra tarjeta de datos.</small>
               </div>
               <div class="form-item exp-only">
                 <label><input type="checkbox" id="vm-emulated"> Emulación sin KVM (lenta)</label>
@@ -206,7 +206,7 @@
           <aside class="net-vms" aria-label="Máquinas virtuales">
             <h3>Máquinas virtuales</h3>
             <div id="net-vmlist" class="net-vmlist"><p class="placeholder">Cargando…</p></div>
-            <p class="net-vms-hint">La red se lee por el canal del hipervisor (Guest Additions en VirtualBox), que no usa la red de la VM: solo se pueden abrir las que están encendidas.</p>
+            <p class="net-vms-hint">La red se lee por el canal interno (Guest Additions en VirtualBox), que no usa la red de la VM: solo se pueden abrir las que están encendidas.</p>
           </aside>
 
           <section class="net-panel" id="net-panel" aria-labelledby="net-title">
@@ -214,8 +214,8 @@
               <h2 id="net-title">Red</h2>
               <label class="net-channel">Canal
                 <select id="net-channel" title="Por dónde entra la app a la VM para leer y cambiar su red">
-                  <option value="">2 · Hipervisor (Guest Additions)</option>
-                  <option value="gestion">3 · SSH por la interfaz de gestión</option>
+                  <option value="">Canal interno · Guest Additions (sin red)</option>
+                  <option value="gestion">Canal de gestión · SSH a la tarjeta de gestión</option>
                 </select>
               </label>
             </div>
@@ -314,12 +314,12 @@
             <p class="net-lead">Cómo cambiar la red de una VM sin perder el acceso. Deslice las tarjetas o use las flechas. En el panel de Red, cada paso tiene un recuadro <b>Para entender</b> que se abre con un clic.</p>
             <div class="net-carousel">
               <div class="net-track" id="net-mtrack" tabindex="0" aria-label="Pasos del manual">
-                <article class="net-card"><span class="no">1</span><h4>Escoja la VM</h4><p>En la sub-pestaña Red, a la izquierda, o con el botón «Red» de cada VM. Tiene que estar encendida: la app lee su red por el canal del hipervisor (Guest Additions en VirtualBox). Lo que leyó está en «Ver lo que leyó la app». Todavía no escribe nada.</p></article>
+                <article class="net-card"><span class="no">1</span><h4>Escoja la VM</h4><p>En la sub-pestaña Red, a la izquierda, o con el botón «Red» de cada VM. Tiene que estar encendida: la app lee su red por el canal interno (Guest Additions en VirtualBox). Lo que leyó está en «Ver lo que leyó la app». Todavía no escribe nada.</p></article>
                 <article class="net-card"><span class="no">2</span><h4>Paso 1 · Interfaz</h4><p>Aparecen todas las tarjetas que la app encontró. Las etiquetas dicen cuál tiene la ruta por defecto, de qué red del hipervisor es y cuáles son virtuales (Docker, VPN…), que no se configuran desde aquí. Si hay varias tarjetas, configúrelas una a la vez.</p></article>
                 <article class="net-card"><span class="no">3</span><h4>Paso 2 · Modo</h4><p><i>DHCP</i> si en esa red hay un servidor que entregue los datos (en la NAT de VirtualBox, el propio VirtualBox). <i>IP fija</i> para servidores. <i>IP adicional</i> para sumar una dirección sin quitar la actual.</p></article>
                 <article class="net-card"><span class="no">4</span><h4>Paso 3 · Los datos</h4><p>IP, máscara, puerta de enlace y DNS. En <i>Uso de la puerta de enlace</i> decida su papel: principal (una sola), respaldo, solo hacia ciertas redes o ninguna. La app valida contra la VM y contra las redes del hipervisor: mientras haya algo en rojo, Aplicar no se activa.</p></article>
                 <article class="net-card"><span class="no">5</span><h4>Paso 4 · Revise</h4><p>Tres pestañas: el archivo que se va a escribir, los comandos exactos (los marcados <i>hipervisor</i> corren en el host) y cómo queda la tabla de rutas. Lo resaltado es lo que cambia.</p></article>
-                <article class="net-card"><span class="no">6</span><h4>Aplicar</h4><p>La app respalda, programa dentro de la VM la vuelta atrás (el tiempo se cambia en Configuración), escribe, aplica y verifica. Si todo responde, cancela la vuelta atrás y, con libvirt, si la IP fija cae en el rango DHCP, la reserva para esa VM.</p></article>
+                <article class="net-card"><span class="no">6</span><h4>Aplicar</h4><p>La app respalda, programa dentro de la VM la vuelta atrás (el tiempo se cambia en Configuración), escribe, aplica y verifica. Si todo responde, cancela la vuelta atrás.</p></article>
                 <article class="net-card"><span class="no">7</span><h4>Si algo falla</h4><p>No hay que hacer nada: la app dispara la reversión y la VM vuelve a la configuración anterior. Si se perdiera la conexión con la app, la VM vuelve sola cuando venza el temporizador. Como último recurso, la consola de la VM en el hipervisor y el respaldo <code>.bak</code>.</p></article>
                 <article class="net-card read"><span class="no">+</span><h4>Para leer antes de usarla</h4>
                   <ul>
@@ -346,7 +346,7 @@
           <div class="net-dpane" id="net-d-bib" role="tabpanel" hidden>
             <p class="net-lead">De aquí sale lo que dice el panel. Los números entre corchetes de las explicaciones abren esta lista en la fuente citada.</p>
             <div class="net-bibtools">
-              <input type="search" id="net-bibq" placeholder="Buscar: DHCP, 1122, netplan, libvirt…" aria-label="Buscar en la bibliografía">
+              <input type="search" id="net-bibq" placeholder="Buscar: DHCP, 1122, netplan, VirtualBox…" aria-label="Buscar en la bibliografía">
               <button type="button" class="btn-small" id="net-bibopen">Abrir todo</button>
               <button type="button" class="btn-small" id="net-bibclose">Cerrar todo</button>
             </div>
@@ -358,9 +358,9 @@
           <h3>Por qué está diseñado así</h3>
           <p class="net-lead">El usuario solo decide lo que nadie más puede decidir: interfaz, modo y los datos. Todo lo demás lo resuelve la aplicación, porque son los mismos pasos que hicimos a mano en la práctica de Debian.</p>
           <ol>
-            <li><div><b>Lee antes de escribir, y no supone nombres.</b><span>Un solo script, por el canal del hipervisor (Guest Additions o agente QEMU), lee <code>/etc/os-release</code>, los servicios activos, <code>ip -br link</code>, <code>/sys/class/net</code>, <code>ip -4 addr</code>, <code>ip r</code> y el DNS. De ahí salen el gestor de red, las tarjetas y la columna Actual.</span></div></li>
-            <li><div><b>Un canal que no se corta.</b><span>La app no entra a la VM por SSH: habla con el hipervisor y este con el agente de la VM por un canal virtio. Cambiar la IP no corta ese canal; solo se cierran las sesiones SSH de los usuarios hacia la IP vieja.</span></div></li>
-            <li><div><b>Conoce las redes del hipervisor.</b><span>Desde VirtualBox (o libvirt) lee el tipo de red, el rango DHCP y la puerta de enlace. Así rechaza una IP que ya tiene otra VM y reserva la IP fija para que el DHCP no se la entregue a nadie más.</span></div></li>
+            <li><div><b>Lee antes de escribir, y no supone nombres.</b><span>Un solo script, por el canal elegido (Guest Additions o SSH de gestión), lee <code>/etc/os-release</code>, los servicios activos, <code>ip -br link</code>, <code>/sys/class/net</code>, <code>ip -4 addr</code>, <code>ip r</code> y el DNS. De ahí salen el gestor de red, las tarjetas y la columna Actual.</span></div></li>
+            <li><div><b>Un canal que no se corta.</b><span>La app no entra por la interfaz que modifica: le pide a VirtualBox que ejecute los comandos con las Guest Additions, o entra por SSH a una interfaz de gestión que nunca se modifica. Cambiar la IP no corta ese canal; solo se cierran las sesiones SSH de los usuarios hacia la IP vieja.</span></div></li>
+            <li><div><b>Conoce las redes del hipervisor.</b><span>Desde VirtualBox lee el tipo de red, el rango DHCP y la puerta de enlace. Así rechaza una IP que ya tiene otra VM y advierte si la IP fija cae en el rango que reparte el DHCP.</span></div></li>
             <li><div><b>Varias tarjetas, varias puertas de enlace.</b><span>Cada tarjeta declara si su puerta de enlace es la principal, de respaldo, solo para ciertas redes o ninguna. La pestaña «Tabla de rutas» muestra cuál gana, y la app advierte si quedan dos rutas por defecto con la misma prioridad.</span></div></li>
             <li><div><b>Valida en el servidor.</b><span>La misma lógica decide la vista previa y el aplicar: red y broadcast, puerta de enlace en la subred, IP ocupada, otra red (el error de <code>192.168.10.23</code>). Al aplicar vuelve a leer la VM: nunca confía en una lectura vieja.</span></div></li>
             <li><div><b>No pelea con cloud-init.</b><span>En Ubuntu escribe su propio <code>90-ejecutor-…yaml</code> en vez de editar <code>50-cloud-init.yaml</code>, y apaga la red de cloud-init para que el cambio sobreviva al reinicio.</span></div></li>
@@ -641,7 +641,7 @@
     </form>
   </dialog>
 
-  <script src="/static/app.js?v=24"></script>
-  <script src="/static/network.js?v=24"></script>
+  <script src="/static/app.js?v=24b"></script>
+  <script src="/static/network.js?v=25"></script>
 </body>
 </html>

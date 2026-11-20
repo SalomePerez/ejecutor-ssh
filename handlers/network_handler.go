@@ -64,8 +64,8 @@ func (h *VMHandler) serveNetwork(w http.ResponseWriter, r *http.Request, name, a
 		writeVMResponse(w, http.StatusBadRequest, vmResponse{Success: false, Error: err.Error()})
 		return
 	}
-	// canal=gestion usa SSH por la interfaz de gestion (canal 3); si no, el
-	// canal del hipervisor (Guest Additions o agente QEMU, canal 2).
+	// canal=gestion usa SSH por la interfaz de gestion (canal de gestion); si no, el
+	// canal interno (Guest Additions o agente QEMU).
 	channel := r.URL.Query().Get("canal")
 	np, err := h.networkOps(channel)
 	if err != nil {

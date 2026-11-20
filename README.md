@@ -28,12 +28,12 @@ Cambiar la IP de una VM por SSH a esa misma IP corta la sesión. La app usa cana
 
 | Canal | Cómo entra a la VM | Requisito | Estado |
 |---|---|---|---|
-| 1 · En banda | SSH a la interfaz que se cambia | — | descartado: se corta |
-| 2 · Hipervisor | `VBoxManage guestcontrol run` (Guest Additions, dispositivo VMMDev) | Guest Additions y usuario con contraseña en la VM | **implementado** (por defecto) |
-| 3 · Interfaz de gestión | SSH a una segunda tarjeta en la red *solo anfitrión* | tarjeta de gestión con IP (DHCP de VirtualBox) | **implementado** |
+| En banda | SSH a la interfaz que se cambia | — | descartado: se corta |
+| Canal interno (hipervisor) | `VBoxManage guestcontrol run` (Guest Additions, dispositivo VMMDev) | Guest Additions y usuario con contraseña en la VM | **implementado** (por defecto) |
+| Canal de gestión (SSH) | SSH a una segunda tarjeta en la red *solo anfitrión* | tarjeta de gestión con IP (DHCP de VirtualBox) | **implementado** |
 
-- El canal 2 es el equivalente en VirtualBox de `qemu-guest-agent` (el canal del diseño anterior con libvirt).
-- En el canal 3 la IP de gestión se obtiene del servidor DHCP de VirtualBox (`dhcpserver findlease`), sin depender de las Guest Additions; con ese canal el plan **no permite modificar la interfaz de gestión**. Funciona igual con un equipo físico que tenga una interfaz de gestión.
+- El canal interno (Guest Additions) es el equivalente en VirtualBox de `qemu-guest-agent` (el canal del diseño anterior con libvirt).
+- En el canal de gestión (SSH) la IP de gestión se obtiene del servidor DHCP de VirtualBox (`dhcpserver findlease`), sin depender de las Guest Additions; con ese canal el plan **no permite modificar la interfaz de gestión**. Funciona igual con un equipo físico que tenga una interfaz de gestión.
 - En el panel de Red se elige el canal; en la API es el parámetro `?canal=gestion`.
 
 ## Crear una VM
@@ -43,7 +43,7 @@ Cambiar la IP de una VM por SSH a esa misma IP corta la sesión. La app usa cana
 3. cloud-init encuentra su configuración por el número de serie DMI: `ds=nocloud;s=http://10.0.2.2:8081/cloud-init/<vm>/`. Desde la NAT, `10.0.2.2` es este equipo; la app sirve `user-data` y `meta-data` solo a conexiones locales.
    - VirtualBox 7 exige `--nat-localhostreachable1 on` para que la VM llegue al anfitrión por `10.0.2.2`; la app lo activa al crear.
 4. cloud-init crea el usuario de la app (`vbox.guest.user`, con contraseña y la llave `keys/<vm>-ssh`) e instala las Guest Additions desde el ISO de VirtualBox.
-5. Opcional: **interfaz de gestión** (canal 3), una tarjeta *solo anfitrión* que cloud-init deja en DHCP sin ruta por defecto.
+5. Opcional: **interfaz de gestión** (canal de gestión), una tarjeta *solo anfitrión* que cloud-init deja en DHCP sin ruta por defecto.
 
 La VM queda lista en 3 a 7 minutos (actualiza paquetes antes de instalar las Guest Additions).
 
@@ -135,7 +135,7 @@ $env:VBOX_LIVE=1; go test ./mv -run Live -v
 | `POST /api/vms/{vm}/network/forwarding` `{"enabled":true}` | reenvío IPv4 persistente |
 | `POST /api/vms/{vm}/network/test` `{"target":"192.168.20.10"}` | ping, `ip route get`, `tracepath` |
 
-Las rutas `/network*` aceptan `?canal=gestion` para usar el canal 3.
+Las rutas `/network*` aceptan `?canal=gestion` para usar el canal de gestión.
 
 Cuerpo de `plan` y `apply`: `{"interface":"enp0s8","mode":"static","ip":"192.168.10.10","mask":"/24","gateway":"192.168.10.1","role":"routes","nets":"192.168.20.0/24","dns":""}`. `mode`: `dhcp`, `static` o `extra`; `role`: `main`, `backup`, `routes` o `none`.
 
@@ -148,7 +148,7 @@ handlers/               API REST (VMs, red, redes, llaves, usuarios, cloud-init)
 mv/
   provider.go           interfaz Provider (crear, listar, encender…)
   vbox*.go              proveedor VirtualBox (VBoxManage, guestcontrol, redes, creación)
-  mgmt_channel.go       canal 3: SSH por la interfaz de gestión
+  mgmt_channel.go       canal de gestión: SSH por la interfaz de gestión
   network*.go           detección, plan por gestor de red, aplicación con reversión,
                         reenvío IPv4 y prueba de conectividad (comunes a los proveedores)
   libvirt*.go, guestagent.go   proveedor anterior (libvirt + qemu-guest-agent)
@@ -158,9 +158,9 @@ static/, templates/     interfaz web
 ## Seguridad
 
 - `VBoxManage` se ejecuta con argumentos separados, sin shell.
-- Los scripts dentro de la VM se pasan como argumento (`sh -c "$1"`) y la contraseña de `sudo` por variable de entorno (canal 2) o entrada estándar (canal 3), nunca en la línea de comandos de la VM.
+- Los scripts dentro de la VM se pasan como argumento (`sh -c "$1"`) y la contraseña de `sudo` por variable de entorno (canal interno) o entrada estándar (canal de gestión), nunca en la línea de comandos de la VM.
 - `/cloud-init/` solo responde a conexiones locales (la NAT de la VM llega como 127.0.0.1).
-- El canal 3 guarda la llave de host de cada VM la primera vez (`keys/known_hosts_vms`) y después exige que coincida.
+- El canal de gestión guarda la llave de host de cada VM la primera vez (`keys/known_hosts_vms`) y después exige que coincida.
 - Descarga y borrado de llaves privadas exigen `X-API-Key`.
 
 ## Licencia

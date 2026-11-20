@@ -31,7 +31,7 @@ type createVMRequest struct {
 	Disks     []diskRequest `json:"disks,omitempty"`
 	Networks  []string      `json:"networks,omitempty"`
 	Emulated  bool          `json:"emulated,omitempty"`
-	// Management agrega la interfaz de gestion (canal 3).
+	// Management agrega la interfaz de gestion (canal de gestion).
 	Management bool `json:"management,omitempty"`
 }
 

@@ -585,7 +585,7 @@ function renderVMs() {
     ? `<span class="chip dim">${vmCache.length} ${vmCache.length === 1 ? 'VM' : 'VMs'}</span><span class="chip ok">${on} encendida${on === 1 ? '' : 's'}</span>`
     : '') + (hostInfo ? `<span class="chip ${over ? 'bad' : 'dim'}" title="Memoria de las VMs encendidas / memoria total del hipervisor">RAM ${(used / 1024).toFixed(1)} de ${(hostInfo.memoryMB / 1024).toFixed(1)} GB</span>` : '');
   $('#vm-mem-warning').hidden = !over;
-  if (over) $('#vm-mem-warning').innerHTML = `<span>⚠</span><span>Las VMs encendidas piden <b>${(used / 1024).toFixed(1)} GB</b> y el hipervisor tiene <b>${(hostInfo.memoryMB / 1024).toFixed(1)} GB</b>. Todo irá lento y el canal del hipervisor tardará mucho en responder. Apague las VMs que no esté usando.</span>`;
+  if (over) $('#vm-mem-warning').innerHTML = `<span>⚠</span><span>Las VMs encendidas piden <b>${(used / 1024).toFixed(1)} GB</b> y el hipervisor tiene <b>${(hostInfo.memoryMB / 1024).toFixed(1)} GB</b>. Todo irá lento y el canal interno tardará mucho en responder. Apague las VMs que no esté usando.</span>`;
   if (!vmCache.length) { list.innerHTML = '<p class="placeholder">No hay máquinas virtuales. Cree la primera con el formulario.</p>'; return; }
   list.innerHTML = vmCache.map(vm => {
     const [cls, label] = vmStateLabel(vm.status);
@@ -606,7 +606,7 @@ function renderVMs() {
         ${running
           ? '<button type="button" class="btn-small" data-act="stop">Apagar</button>'
           : '<button type="button" class="btn-small go" data-act="start">Encender</button>'}
-        <button type="button" class="btn-small" data-act="net"${running ? '' : ' disabled title="Encienda la VM: la red se lee por el canal del hipervisor"'}>Red</button>
+        <button type="button" class="btn-small" data-act="net"${running ? '' : ' disabled title="Encienda la VM: la red se lee por el canal interno"'}>Red</button>
         <button type="button" class="btn-small" data-act="disks" aria-expanded="false">Discos</button>
         <button type="button" class="btn-small" data-act="nics" aria-expanded="false">Tarjetas</button>
         <button type="button" class="btn-small" data-act="edit" aria-expanded="false">Editar</button>
@@ -770,7 +770,7 @@ async function detachNic(vm, mac, network) {
   const yes = await ask({
     title: 'Quitar tarjeta de red',
     html: `<p>Se quitará de <b>${esc(vm.name)}</b> la tarjeta <b>${esc(mac)}</b> (red «${esc(network)}»).</p>` +
-      (only ? '<p><b>Es su única tarjeta:</b> la VM quedará sin red. El canal del hipervisor (Guest Additions) sigue funcionando porque no usa la red.</p>' : ''),
+      (only ? '<p><b>Es su única tarjeta:</b> la VM quedará sin red. El canal interno (Guest Additions) sigue funcionando porque no usa la red.</p>' : ''),
     ok: 'Quitar', danger: true
   });
   if (!yes) return;

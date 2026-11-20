@@ -17,16 +17,16 @@ import (
 	"golang.org/x/crypto/ssh/knownhosts"
 )
 
-// ---------- Canal 3: interfaz de administracion ----------
+// ---------- Canal de gestion: SSH a la tarjeta de gestion ----------
 // La VM tiene una segunda tarjeta reservada para la gestion, en la red
 // "solo anfitrion" de VirtualBox (192.168.56.0/24). La app entra por SSH a
 // la IP de esa tarjeta y desde ahi configura las DEMAS interfaces (las de
 // datos). Como la tarjeta de gestion nunca se modifica, el canal no se corta
-// aunque cambie la red de datos. A diferencia del canal 2 (Guest Additions),
+// aunque cambie la red de datos. A diferencia del canal interno (Guest Additions),
 // no depende del hipervisor: funciona igual con un equipo fisico que tenga
 // una interfaz de gestion.
 // La IP de gestion se lee del servidor DHCP de VirtualBox (findlease), no de
-// las Guest Additions, para que este canal no dependa del canal 2.
+// las Guest Additions, para que este canal no dependa del canal interno.
 
 // MgmtTarget es la tarjeta de gestion de una VM.
 type MgmtTarget struct {
@@ -252,7 +252,7 @@ func (o mgmtOps) backend(name string) (*mgmtBackend, error) {
 // que canal se leyo, para que el plan no la toque.
 func markManagement(st *NetState, b *mgmtBackend) {
 	st.Management = b.target.MAC
-	st.Channel = "SSH por la interfaz de gestión (" + b.target.IP + ")"
+	st.Channel = "el canal de gestión (SSH a " + b.target.IP + ")"
 }
 
 func (o mgmtOps) ReadNetwork(name string) (*NetState, error) {

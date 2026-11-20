@@ -302,7 +302,7 @@ func PlanNetwork(st *NetState, req NetRequest, revertSeconds int) *NetPlan {
 			case gwn == ipn:
 				add("bad", "La puerta de enlace no puede ser la misma IP de la VM.")
 			}
-			if ln != nil && role == "main" && gwOK && gw != ln.HostIP {
+			if ln != nil && ln.HostIP != "" && role == "main" && gwOK && gw != ln.HostIP {
 				add("warn", fmt.Sprintf("En la red «%s» de "+hvName(st)+" la salida a Internet es %s (el hipervisor). Con %s la VM puede quedar sin Internet.", ln.Network, ln.HostIP, gw))
 			}
 			switch role {
@@ -389,14 +389,22 @@ func PlanNetwork(st *NetState, req NetRequest, revertSeconds int) *NetPlan {
 		}
 
 		if ln != nil && ln.DHCPStart != "" && ipInRange(ip, ln.DHCPStart, ln.DHCPEnd) && (!isCur || i.Mode == "dhcp") {
-			add("warn", fmt.Sprintf("%s está dentro del rango que reparte el DHCP de "+hvName(st)+" (%s a %s). La app la reservará para la MAC %s, para que el DHCP no se la entregue a otra VM.", ip, ln.DHCPStart, ln.DHCPEnd, i.MAC))
+			if hvName(st) == "libvirt" {
+				add("warn", fmt.Sprintf("%s está dentro del rango que reparte el DHCP de libvirt (%s a %s). La app la reservará para la MAC %s, para que el DHCP no se la entregue a otra VM.", ip, ln.DHCPStart, ln.DHCPEnd, i.MAC))
+			} else {
+				add("warn", fmt.Sprintf("%s está dentro del rango que reparte el DHCP de %s (%s a %s): ese servidor podría entregársela a otra VM. Es más seguro una IP fuera del rango.", ip, hvName(st), ln.DHCPStart, ln.DHCPEnd))
+			}
 		}
 		if i.Mode == "static" && isCur && p == i.Prefix && role == i.Role && (role == "none" || gw == i.Gateway) && dns == i.DNS && strings.Join(nets, ",") == strings.Join(i.Nets, ",") {
 			add("info", "Los datos son iguales a los actuales: no hay nada que cambiar.")
 			changed = false
 		}
 		if !isCur && i.IP != "" {
-			add("info", "Las sesiones SSH abiertas hacia "+i.IP+" se cerrarán. La app no se afecta: habla con la VM por el agente QEMU, que no usa la red de la VM.")
+			canal := st.Channel
+			if canal == "" {
+				canal = "el canal interno"
+			}
+			add("info", "Las sesiones SSH abiertas hacia "+i.IP+" se cerrarán. La app no se afecta: habla con la VM por "+canal+", que no pasa por esta interfaz.")
 		}
 		cfg = &IfaceConfig{Mode: "static", IP: ip, Prefix: p, Gateway: gw, Role: role, Metric: metric, Nets: nets, DNS: dns, Extras: append([]string{}, i.Extras...)}
 

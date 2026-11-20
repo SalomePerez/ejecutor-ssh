@@ -42,8 +42,8 @@
     { k: 'mannaming', s: 'systemd.net-naming-scheme(7)', t: '<i>systemd.net-naming-scheme(7)</i>: nombres como enp1s0.', u: MAN + 'systemd.net-naming-scheme.7', man: 'man 7 systemd.net-naming-scheme' },
     { g: 'Otras referencias técnicas', k: 'netplan', s: 'Netplan YAML', t: 'Canonical. <i>Netplan — YAML configuration reference</i>.', u: 'https://netplan.readthedocs.io/en/stable/netplan-yaml/' },
     { k: 'cloudinit', s: 'cloud-init: network config', t: 'Canonical. <i>cloud-init — Network configuration</i>: cómo desactivarla con <code>network: {config: disabled}</code>.', u: 'https://cloudinit.readthedocs.io/en/latest/reference/network-config.html' },
-    { k: 'qemuga', s: 'QEMU Guest Agent', t: 'QEMU. <i>QEMU Guest Agent Protocol Reference</i>: guest-exec y guest-exec-status.', u: 'https://qemu-project.gitlab.io/qemu/interop/qemu-ga-ref.html' },
-    { k: 'libvirtnet', s: 'libvirt: Network XML', t: 'libvirt. <i>Network XML format</i>: rango DHCP y reservas (&lt;host&gt;).', u: 'https://libvirt.org/formatnetwork.html' },
+    { k: 'vboxga', s: 'VirtualBox: Guest Additions', t: 'Oracle. <i>VirtualBox User Manual</i>: Guest Additions y <code>VBoxManage guestcontrol</code>.', u: 'https://www.virtualbox.org/manual/' },
+    { k: 'vboxnet', s: 'VirtualBox: Virtual Networking', t: 'Oracle. <i>VirtualBox User Manual</i>, «Virtual Networking»: NAT, puente, solo anfitrión, red interna y su DHCP.', u: 'https://www.virtualbox.org/manual/' },
     { k: 'kernsysctl', s: 'ip-sysctl', t: 'Linux Kernel. <i>IP Sysctl</i>: net.ipv4.ip_forward.', u: 'https://docs.kernel.org/networking/ip-sysctl.html' },
     { k: 'lartc', s: 'LARTC cap. 4', t: 'B. Hubert et al. <i>Linux Advanced Routing &amp; Traffic Control HOWTO</i>, §4.2.', u: 'https://lartc.org/howto/lartc.rpdb.multiple-links.html' }
   ];
@@ -108,22 +108,22 @@
     let h = P('Interfaz de red.', 'Es el nombre que el kernel le da a cada tarjeta. Los nombres predecibles salen de la ubicación física: <code>en</code> es Ethernet, <code>p1s0</code> el bus PCI 1, ranura 0. Así el nombre no cambia entre reinicios, como sí podía pasar con <code>eth0</code> ' + R('mannaming') + ' ' + R('dah', 'Manual de Debian §8.2.1') + '. La MAC identifica la tarjeta en la red local, y ARP la asocia con la IP ' + R('rfc826') + '.');
     if (virt) h += P('Interfaces virtuales.', 'Las marcadas como <i>virtual</i> no son tarjetas: las crea un programa (Docker, libvirt, una VPN). La app lo sabe porque en <code>/sys/class/net</code> apuntan a <code>/devices/virtual/</code>. Se gestionan desde el programa que las creó.');
     if (multi) h += P('Varias tarjetas.', 'Un equipo con dos o más interfaces es <i>multihomed</i>: cada una tiene su IP en su red y se configura por separado ' + R('rfc1122', 'RFC 1122 §3.3.4') + '. Si además pasa paquetes entre redes, se comporta como router ' + R('rfc1812') + '; eso lo decide <code>net.ipv4.ip_forward</code> ' + R('kernsysctl') + '.');
-    h += P('Cómo llega la app a la VM.', (S.channel ? 'Entra por SSH a la interfaz de gestión, una tarjeta reservada que nunca se modifica: cambiar las demás no corta la sesión.' : 'No entra por SSH a la red que cambia: le pide a VirtualBox que ejecute los comandos con las Guest Additions, por un dispositivo interno ' + R('qemuga') + '. Ese canal no usa la red de la VM, así que cambiar la IP no lo corta.'));
+    h += P('Cómo llega la app a la VM.', (S.channel ? 'Entra por SSH a la interfaz de gestión, una tarjeta reservada que nunca se modifica: cambiar las demás no corta la sesión.' : 'No entra por SSH a la red que cambia: le pide a VirtualBox que ejecute los comandos con las Guest Additions, por un dispositivo interno ' + R('vboxga') + '. Ese canal no usa la red de la VM, así que cambiar la IP no lo corta.'));
     h += P('En ' + distro().name + '.', 'Manual oficial: ' + distroRefs() + '.');
     setL('net-L-iface', 'qué es una interfaz' + (multi ? ' · varias tarjetas' : '') + (virt ? ' · interfaces virtuales' : '') + ' · cómo llega la app', h);
   }
   function learnMode() {
     let h = '';
-    if (S.mode === 'dhcp') h += P('DHCP.', 'Definido en el ' + R('rfc2131') + '. La VM pide su configuración y un servidor le presta una IP por un tiempo; las opciones del ' + R('rfc2132') + ' traen la máscara (1), la puerta de enlace (3) y el DNS (6). En las redes NAT de libvirt, ese servidor es el propio hipervisor ' + R('libvirtnet') + '.');
-    else if (S.mode === 'static') h += P('IP fija.', 'La configuración mínima de un host según el ' + R('rfc1122') + ': dirección, máscara y, si va a salir de su red, una puerta de enlace; el DNS se agrega para resolver nombres. En la red de libvirt, una IP fija dentro del rango DHCP se <b>reserva</b> para la MAC de la tarjeta, para que el DHCP no se la entregue a otra VM ' + R('libvirtnet') + '.');
+    if (S.mode === 'dhcp') h += P('DHCP.', 'Definido en el ' + R('rfc2131') + '. La VM pide su configuración y un servidor le presta una IP por un tiempo; las opciones del ' + R('rfc2132') + ' traen la máscara (1), la puerta de enlace (3) y el DNS (6). En la red NAT de VirtualBox, ese servidor es el propio VirtualBox ' + R('vboxnet') + '.');
+    else if (S.mode === 'static') h += P('IP fija.', 'La configuración mínima de un host según el ' + R('rfc1122') + ': dirección, máscara y, si va a salir de su red, una puerta de enlace; el DNS se agrega para resolver nombres. Conviene elegirla <b>fuera del rango</b> que reparte el DHCP de la red, para que el servidor no se la entregue a otra VM ' + R('vboxnet') + '.');
     else h += P('IP adicional.', 'Una interfaz puede tener varias direcciones ' + R('rfc1122', 'RFC 1122 §3.3.4') + '. Se agrega con <code>ip addr add</code> ' + R('manipaddr') + ' y queda en el archivo para que sobreviva al reinicio. Así una sola tarjeta física tiene «varias interfaces».');
     h += P('Cómo se hace en ' + distro().name + ':', distroRefs() + '.');
-    setL('net-L-mode', { dhcp: 'qué es DHCP', static: 'qué es una IP fija y la reserva en libvirt', extra: 'qué es una IP adicional' }[S.mode], h);
+    setL('net-L-mode', { dhcp: 'qué es DHCP', static: 'qué es una IP fija', extra: 'qué es una IP adicional' }[S.mode], h);
   }
   const LF = {
-    ip: () => P('Dirección IP (IPv4).', '32 bits en cuatro números de 0 a 255 ' + R('rfc791') + '. 10/8, 172.16/12 y 192.168/16 son privadas ' + R('rfc1918') + '. La primera dirección de cada red la identifica y la última es el broadcast ' + R('rfc919') + ': no se asignan. Antes de aplicar, la app revisa los leases de libvirt y pregunta por ARP con arping si alguien ya la tiene ' + R('rfc5227') + ' ' + R('manarping') + '.'),
+    ip: () => P('Dirección IP (IPv4).', '32 bits en cuatro números de 0 a 255 ' + R('rfc791') + '. 10/8, 172.16/12 y 192.168/16 son privadas ' + R('rfc1918') + '. La primera dirección de cada red la identifica y la última es el broadcast ' + R('rfc919') + ': no se asignan. Antes de aplicar, la app revisa las IP de las otras VMs del hipervisor y pregunta por ARP con arping si alguien ya la tiene ' + R('rfc5227') + ' ' + R('manarping') + '.'),
     mask: () => P('Máscara.', 'Cuántos bits son la red. El ' + R('rfc950') + ' introdujo 255.255.255.0; el ' + R('rfc4632') + ' la escribe como /24. Es lo mismo: Linux muestra /24 y Windows 255.255.255.0.'),
-    gw: () => P('Puerta de enlace.', 'El router al que se envía lo que no está en la red local; debe estar en la misma subred ' + R('rfc1122', 'RFC 1122 §3.3.1') + '. En la red NAT de libvirt es el hipervisor (por ejemplo 192.168.122.1).') +
+    gw: () => P('Puerta de enlace.', 'El router al que se envía lo que no está en la red local; debe estar en la misma subred ' + R('rfc1122', 'RFC 1122 §3.3.1') + '. En la red NAT de VirtualBox es 10.0.2.2, el propio VirtualBox.') +
       P('¿Puede haber más de una?', 'Sí: entre varias rutas por defecto el kernel usa la de menor métrica y las demás quedan de respaldo ' + R('maniproute') + '. También se puede usar una puerta de enlace solo hacia ciertas redes, o enrutamiento por políticas con <code>ip rule</code> ' + R('maniprule') + ' ' + R('lartc') + '. Las redes internas de un router van sin puerta de enlace ' + R('rfc1812') + '.'),
     dns: () => P('DNS.', 'Traduce nombres a IPs ' + R('rfc1034') + ' ' + R('rfc1035') + '. Con ifupdown hay un solo resolver para toda la VM (' + R('manresolv') + '); con systemd-resolved cada interfaz tiene el suyo (' + R('manresolvectl') + ').')
   };
@@ -158,7 +158,7 @@
   function renderHead() {
     const st = S.state;
     $('#net-title').textContent = 'Red de ' + S.vm;
-    const channel = st.channel || (st.hypervisor === 'VirtualBox' ? 'Guest Additions de VirtualBox' : 'agente QEMU');
+    const channel = st.channel || (st.hypervisor === 'VirtualBox' ? 'el canal interno (Guest Additions)' : 'el canal interno (agente QEMU)');
     $('#net-detect').innerHTML = 'Detectado por ' + channel + ': ' +
       `<span class="net-chip">${esc(st.os || 'sistema desconocido')}</span><span class="net-chip">${esc(st.managerName || 'gestor no reconocido')}</span>` +
       (st.forwarding ? '<span class="net-chip warm">reenvío IPv4 activo (router)</span>' : '<span class="net-chip dim">sin reenvío IPv4</span>') +
@@ -211,7 +211,7 @@
     $('#net-a-dns').textContent = i.dns || '—';
   }
   const HELP = {
-    dhcp: 'El servidor DHCP de la red entrega los datos. En la red NAT de libvirt, ese servidor es el hipervisor.',
+    dhcp: 'El servidor DHCP de la red entrega los datos. En la red NAT de VirtualBox, ese servidor es el propio VirtualBox.',
     static: 'Los datos se escriben a mano y no cambian. Es lo que necesita un servidor al que se entra por SSH.',
     extra: 'La interfaz conserva su IP y suma otra. Puerta de enlace y DNS no cambian.'
   };
@@ -440,7 +440,7 @@
       $('#net-body').hidden = true;
       $('#net-run').hidden = true;
       $('#net-loading').hidden = false;
-      $('#net-loading').innerHTML = '<div class="net-wait"><span class="spinner"></span> Leyendo la red de la VM ' + (S.channel ? 'por SSH a su interfaz de gestión' : 'por el canal del hipervisor') + '…</div>';
+      $('#net-loading').innerHTML = '<div class="net-wait"><span class="spinner"></span> Leyendo la red de la VM ' + (S.channel ? 'por el canal de gestión (SSH)' : 'por el canal interno') + '…</div>';
       $('#net-panel').scrollIntoView({ block: 'start', behavior: 'smooth' });
     }
     if (S.vm !== name) return;

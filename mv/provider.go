@@ -36,7 +36,7 @@ type CreateSpec struct {
 	// mas lenta, pero no usa VT-x anidado (ver emulatedFlags).
 	Emulated bool
 	// Management agrega una tarjeta de gestion (solo anfitrion, por DHCP)
-	// para el canal 3. Solo VirtualBox.
+	// para el canal de gestion. Solo VirtualBox.
 	Management bool
 }
 
