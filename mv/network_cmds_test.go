@@ -138,7 +138,7 @@ func TestInstallTool(t *testing.T) {
 		t.Fatalf("instalar: %v %+v", err, res)
 	}
 	sc := b.scripts[0]
-	for _, want := range []string{"apt-get install -y -q net-tools", "dnf install -y -q net-tools", "pacman -Sy --noconfirm --needed net-tools", "command -v arp"} {
+	for _, want := range []string{"apt-get install -y -q -o Dpkg::Use-Pty=0 net-tools", "dnf install -y -q net-tools", "pacman -Sy --noconfirm --needed net-tools", "command -v arp"} {
 		if !strings.Contains(sc, want) {
 			t.Errorf("falta %q en el script", want)
 		}
