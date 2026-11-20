@@ -146,22 +146,41 @@
   // Rutas resultantes: cómo quedará la tabla con el cambio que se está
   // preparando en «Configuración de red» (el mismo plan que valida el servidor).
   const MODE_TXT = { dhcp: 'DHCP', static: 'IP fija', extra: 'IP adicional', remove: 'quitar IP adicional' };
+  // Clave de una ruta para emparejar la tabla real con la calculada: destino e
+  // interfaz (el formato del resto de la línea puede variar).
+  function routeKey(line) {
+    const f = String(line).trim().split(/\s+/);
+    const k = ['unreachable', 'blackhole', 'prohibit', 'throw', 'local', 'broadcast'].includes(f[0]) ? 1 : 0;
+    const d = f.indexOf('dev');
+    return (f[k] === '0.0.0.0/0' ? 'default' : f[k]) + '|' + (d >= 0 ? f[d + 1] : '');
+  }
+
   function renderAfter() {
     const box = $('#nc-r-after');
     if (!box) return;
     const p = S.vm && window.netPlanFor ? window.netPlanFor(S.vm) : null;
     if (!p) {
-      box.innerHTML = `<div class="nc-after-empty"><b>Rutas resultantes</b><span>Cuando prepare un cambio en <a href="#" data-goto-config>Configuración de red</a> para ${esc(S.vm)}, aquí verá cómo quedará esta tabla antes de aplicarlo.</span></div>`;
+      box.innerHTML = `<div class="nc-after-empty"><b>Rutas resultantes</b><span>Cuando prepare un cambio en <a href="#" data-goto-config>Configuración de red</a> para ${esc(S.vm)}, aquí verá la tabla actual y cómo quedará, una al lado de la otra, antes de aplicarlo.</span></div>`;
       return;
     }
     const c = p.plan.config || {};
     const what = MODE_TXT[p.mode] + (p.mode === 'remove' ? ' ' + (c.removed || '') : p.mode === 'extra' ? ' ' + (c.added || '') : p.mode === 'static' ? ' ' + c.ip + '/' + c.prefix : '');
-    const added = p.plan.routes.filter(r => r.state === 'new').length, gone = p.plan.routes.filter(r => r.state === 'gone').length;
+    const gone = new Set(p.plan.routes.filter(r => r.state === 'gone').map(r => routeKey(r.text)));
+    const after = p.plan.routes.filter(r => r.state !== 'gone');
+    const actual = (S.routing ? S.routing.routes : []).map(r => r.raw);
+    const nOut = actual.filter(l => gone.has(routeKey(l))).length, nNew = after.filter(r => r.state === 'new').length;
+    const col = (title, sub, body) => `<div class="net-file"><div class="fp"><b>${title}</b> · ${sub}</div><pre>${body}</pre></div>`;
     box.innerHTML = `<div class="nc-after-head"><div><b>Rutas resultantes</b><span>con el cambio en preparación: <code>${esc(p.iface)}</code> · ${esc(what)}</span></div>` +
       `<button type="button" class="btn-small" data-goto-config>Volver a Configuración de red</button></div>` +
-      `<div class="net-file"><div class="fp">${esc(p.plan.routeSummary || '')}</div><pre><span class="cm"># ip r — así quedará la tabla de rutas</span>\n` +
-      p.plan.routes.map(r => r.state === 'new' ? `<span class="chg">+ ${esc(r.text)}</span>` : r.state === 'gone' ? `<span class="del">− ${esc(r.text)}</span>` : '  ' + esc(r.text)).join('\n') + '</pre></div>' +
-      `<p class="net-help">${added || gone ? `<span class="nc-leg add">+ ${added} nueva${added === 1 ? '' : 's'}</span> <span class="nc-leg del">− ${gone} que desaparece${gone === 1 ? '' : 'n'}</span> · ` : 'La tabla no cambia con este cambio. · '}Calculada por la app a partir de la configuración; la tabla real de arriba se actualiza al aplicar.</p>`;
+      `<p class="nc-after-sum">${esc(p.plan.routeSummary || '')}</p>` +
+      '<div class="nc-cmp">' +
+      col('Actual', 'leída de la VM (<code>ip -4 route</code>)', actual.length
+        ? actual.map(l => gone.has(routeKey(l)) ? `<span class="ln del">− ${esc(l)}</span>` : `<span class="ln">  ${esc(l)}</span>`).join('')
+        : '<span class="cm">(vacía)</span>') +
+      col('Resultante', 'con el cambio', after.map(r => r.state === 'new' ? `<span class="ln chg">+ ${esc(r.text)}</span>` : `<span class="ln">  ${esc(r.text)}</span>`).join('')) +
+      '</div>' +
+      `<p class="net-help">${nOut || nNew ? `<span class="nc-leg del">− ${nOut} sale${nOut === 1 ? '' : 'n'} o cambia${nOut === 1 ? '' : 'n'}</span> <span class="nc-leg add">+ ${nNew} nueva${nNew === 1 ? '' : 's'}</span> · ` : 'La tabla no cambia con este cambio. · '}` +
+      'La columna Resultante la calcula la app; al aplicar, el kernel puede agregar detalles como <code>src</code> o <code>metric</code>, y la tabla real de arriba se actualiza.</p>';
   }
 
   async function probe(e) {

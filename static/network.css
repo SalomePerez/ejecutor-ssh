@@ -342,3 +342,13 @@ a.net-fn:hover { color: var(--teal); }
 .nc-leg.add { color: var(--accent); font-weight: 700; }
 .nc-leg.del { color: var(--error); font-weight: 700; }
 .net-ptab-link { margin-left: auto; color: var(--teal) !important; font-weight: 700; }
+.nc-after-sum { margin: 0; font-weight: 600; font-size: .9rem; }
+.nc-cmp { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 900px) { .nc-cmp { grid-template-columns: minmax(0, 1fr); } }
+.nc-cmp .net-file { min-width: 0; }
+.nc-cmp .fp code { font-size: .95em; }
+.nc-cmp pre { font-size: .8rem; }
+.nc-cmp .fp { font-family: var(--font-ui); font-size: .8rem; white-space: normal; }
+.nc-cmp .fp b { color: var(--ink); }
+.nc-cmp pre .ln { display: block; padding-left: 1.4em; text-indent: -1.4em; padding-block: 1px; }
+.nc-cmp pre .ln + .ln { border-top: 1px dashed color-mix(in srgb, var(--line) 70%, transparent); }
