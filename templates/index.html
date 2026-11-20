@@ -9,7 +9,7 @@
     try { const t = localStorage.getItem('theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
   </script>
   <link rel="stylesheet" href="/static/style.css?v=28">
-  <link rel="stylesheet" href="/static/network.css?v=27">
+  <link rel="stylesheet" href="/static/network.css?v=28">
 </head>
 <body>
   <main class="shell">
@@ -284,6 +284,7 @@
                 <div class="net-ptabs" role="tablist">
                   <button type="button" role="tab" id="net-t-file" aria-selected="true">Archivo resultante</button>
                   <button type="button" role="tab" id="net-t-cmd" aria-selected="false">Comandos</button>
+                  <button type="button" class="net-ptab-link" id="net-t-routes" title="Cómo quedará la tabla de rutas con este cambio, junto a la tabla actual">Ver rutas resultantes →</button>
                 </div>
                 <div id="net-preview"></div>
                 <details class="net-learn" id="net-L-prev"><summary><span class="lt">Para entender</span><span class="net-ls"></span></summary><div class="net-lb"></div></details>
@@ -357,6 +358,7 @@
                   <button type="submit" class="btn-secondary">Consultar (ip route get)</button>
                 </form>
                 <pre class="net-term" id="nc-r-probe-out" hidden></pre>
+                <div class="nc-after" id="nc-r-after"></div>
                 <details class="net-raw"><summary>Ver la salida de <code>ip -4 route</code></summary><pre class="net-term" id="nc-r-raw"></pre></details>
                 <details class="net-learn" id="nc-r-learn"><summary><span class="lt">Para entender</span><span class="net-ls">cómo elige el kernel la ruta</span></summary><div class="net-lb"></div></details>
               </section>
@@ -429,7 +431,7 @@
                 <article class="net-card"><span class="no">2</span><h4>Paso 1 · Interfaz</h4><p>Aparecen todas las tarjetas que la app encontró. Las etiquetas dicen cuál tiene la ruta por defecto, de qué red del hipervisor es y cuáles son virtuales (Docker, VPN…), que no se configuran desde aquí. Si hay varias tarjetas, configúrelas una a la vez.</p></article>
                 <article class="net-card"><span class="no">3</span><h4>Paso 2 · Modo</h4><p><i>DHCP</i> si en esa red hay un servidor que entregue los datos (en la NAT de VirtualBox, el propio VirtualBox). <i>IP fija</i> para servidores. <i>IP adicional</i> para sumar una dirección sin quitar la actual.</p></article>
                 <article class="net-card"><span class="no">4</span><h4>Paso 3 · Los datos</h4><p>IP, máscara, puerta de enlace y DNS. En <i>Uso de la puerta de enlace</i> decida su papel: principal (una sola), respaldo, solo hacia ciertas redes o ninguna. La app valida contra la VM y contra las redes del hipervisor: mientras haya algo en rojo, Aplicar no se activa.</p></article>
-                <article class="net-card"><span class="no">5</span><h4>Paso 4 · Revise</h4><p>Dos pestañas: el archivo que se va a escribir y los comandos exactos (los marcados <i>hipervisor</i> corren en el host). Lo resaltado es lo que cambia. Después de aplicar, la tabla de rutas real está en «Enrutamiento y diagnóstico».</p></article>
+                <article class="net-card"><span class="no">5</span><h4>Paso 4 · Revise</h4><p>Dos pestañas: el archivo que se va a escribir y los comandos exactos (los marcados <i>hipervisor</i> corren en el host). Lo resaltado es lo que cambia. «Ver rutas resultantes» muestra, junto a la tabla de rutas actual, cómo quedará después del cambio.</p></article>
                 <article class="net-card"><span class="no">6</span><h4>Aplicar</h4><p>La app respalda, programa dentro de la VM la vuelta atrás (el tiempo se cambia en Configuración), escribe, aplica y verifica. Si todo responde, cancela la vuelta atrás.</p></article>
                 <article class="net-card"><span class="no">7</span><h4>Si algo falla</h4><p>No hay que hacer nada: la app dispara la reversión y la VM vuelve a la configuración anterior. Si se perdiera la conexión con la app, la VM vuelve sola cuando venza el temporizador. Como último recurso, la consola de la VM en el hipervisor y el respaldo <code>.bak</code>.</p></article>
                 <article class="net-card read"><span class="no">+</span><h4>Para leer antes de usarla</h4>
@@ -753,7 +755,7 @@
   </dialog>
 
   <script src="/static/app.js?v=29"></script>
-  <script src="/static/network.js?v=28"></script>
-  <script src="/static/netcmds.js?v=2"></script>
+  <script src="/static/network.js?v=29"></script>
+  <script src="/static/netcmds.js?v=3"></script>
 </body>
 </html>

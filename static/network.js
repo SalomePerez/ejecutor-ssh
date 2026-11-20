@@ -280,6 +280,7 @@
         S.plan = { checks: [{ level: 'bad', text: 'No se pudo validar: ' + err.message }], valid: false };
       }
       renderChecks(); renderPreview();
+      document.dispatchEvent(new CustomEvent('netplan')); // Rutas resultantes (Enrutamiento y diagnóstico)
     }, delay);
   }
   function renderChecks() {
@@ -577,6 +578,7 @@
     ['file', 'cmd'].forEach(t => $('#net-t-' + t).addEventListener('click', () => { S.tab = t; renderPreview(); }));
     $('#net-reset').addEventListener('click', () => { if (!S.busy) { prefill(); renderAll(); } });
     $('#net-apply').addEventListener('click', apply);
+    $('#net-t-routes').addEventListener('click', () => { if (S.vm && window.openNetCmds) window.openNetCmds(S.vm, 'routes', true); });
     $('#net-loading').addEventListener('click', e => {
       if (e.target.closest('[data-net-retry]')) { WAIT.tries = 0; open(S.vm, { retry: true }); }
       const rb = e.target.closest('[data-net-repair]'); if (rb) repair(rb);
@@ -601,6 +603,10 @@
   }
 
   window.openNetwork = open;
+  // El cambio en preparación de una VM, para mostrar sus rutas resultantes en
+  // «Enrutamiento y diagnóstico». null si no hay un plan válido para esa VM.
+  window.netPlanFor = vm => (S.vm === vm && S.plan && S.plan.valid && S.plan.routes)
+    ? { plan: S.plan, iface: S.iface, mode: S.mode } : null;
   window.showVmTab = showVmTab;
   window.addEventListener('DOMContentLoaded', bind);
 })();

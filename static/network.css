@@ -331,3 +331,14 @@ a.net-fn:hover { color: var(--teal); }
 .net-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; }
 .net-channel { display: inline-flex; align-items: center; gap: .4rem; font-size: .85rem; }
 .net-channel select { max-width: 100%; }
+
+/* Rutas resultantes (Enrutamiento y diagnostico → Rutas) */
+.nc-after { display: grid; gap: 8px; }
+.nc-after-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
+.nc-after-head > div { display: grid; gap: 1px; }
+.nc-after-head span { font-size: .84rem; color: var(--muted); }
+.nc-after-empty { display: grid; gap: 2px; padding: 12px 14px; border: 1px dashed var(--line); border-radius: 10px; font-size: .88rem; }
+.nc-after-empty span { color: var(--muted); }
+.nc-leg.add { color: var(--accent); font-weight: 700; }
+.nc-leg.del { color: var(--error); font-weight: 700; }
+.net-ptab-link { margin-left: auto; color: var(--teal) !important; font-weight: 700; }

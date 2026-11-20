@@ -140,6 +140,28 @@
       <td data-l="Métrica">${r.metric}</td>
       <td>${tag(r)}</td></tr>`).join('') : '<tr><td colspan="6"><small>La tabla está vacía.</small></td></tr>';
     $('#nc-r-raw').textContent = R.routes.map(r => r.raw).join('\n') || '(vacía)';
+    renderAfter();
+  }
+
+  // Rutas resultantes: cómo quedará la tabla con el cambio que se está
+  // preparando en «Configuración de red» (el mismo plan que valida el servidor).
+  const MODE_TXT = { dhcp: 'DHCP', static: 'IP fija', extra: 'IP adicional', remove: 'quitar IP adicional' };
+  function renderAfter() {
+    const box = $('#nc-r-after');
+    if (!box) return;
+    const p = S.vm && window.netPlanFor ? window.netPlanFor(S.vm) : null;
+    if (!p) {
+      box.innerHTML = `<div class="nc-after-empty"><b>Rutas resultantes</b><span>Cuando prepare un cambio en <a href="#" data-goto-config>Configuración de red</a> para ${esc(S.vm)}, aquí verá cómo quedará esta tabla antes de aplicarlo.</span></div>`;
+      return;
+    }
+    const c = p.plan.config || {};
+    const what = MODE_TXT[p.mode] + (p.mode === 'remove' ? ' ' + (c.removed || '') : p.mode === 'extra' ? ' ' + (c.added || '') : p.mode === 'static' ? ' ' + c.ip + '/' + c.prefix : '');
+    const added = p.plan.routes.filter(r => r.state === 'new').length, gone = p.plan.routes.filter(r => r.state === 'gone').length;
+    box.innerHTML = `<div class="nc-after-head"><div><b>Rutas resultantes</b><span>con el cambio en preparación: <code>${esc(p.iface)}</code> · ${esc(what)}</span></div>` +
+      `<button type="button" class="btn-small" data-goto-config>Volver a Configuración de red</button></div>` +
+      `<div class="net-file"><div class="fp">${esc(p.plan.routeSummary || '')}</div><pre><span class="cm"># ip r — así quedará la tabla de rutas</span>\n` +
+      p.plan.routes.map(r => r.state === 'new' ? `<span class="chg">+ ${esc(r.text)}</span>` : r.state === 'gone' ? `<span class="del">− ${esc(r.text)}</span>` : '  ' + esc(r.text)).join('\n') + '</pre></div>' +
+      `<p class="net-help">${added || gone ? `<span class="nc-leg add">+ ${added} nueva${added === 1 ? '' : 's'}</span> <span class="nc-leg del">− ${gone} que desaparece${gone === 1 ? '' : 'n'}</span> · ` : 'La tabla no cambia con este cambio. · '}Calculada por la app a partir de la configuración; la tabla real de arriba se actualiza al aplicar.</p>`;
   }
 
   async function probe(e) {
@@ -319,10 +341,25 @@
     $('#nc-r-reload').addEventListener('click', () => { if (S.vm) loadRouting(); });
     $('#nc-r-probe').addEventListener('submit', probe);
     $('#nc-f-toggle').addEventListener('click', toggleFwd);
+    document.addEventListener('netplan', () => { if (S.routing) renderAfter(); });
+    $('#nc-r-after').addEventListener('click', e => {
+      if (!e.target.closest('[data-goto-config]')) return;
+      e.preventDefault();
+      if (window.openNetwork && S.vm) {
+        // Si la VM ya está abierta en Configuración de red, solo se cambia de pestaña (no se pierde lo escrito).
+        if (window.netPlanFor && window.netPlanFor(S.vm)) showVmTab('net'); else window.openNetwork(S.vm);
+      }
+    });
     $('#nc-channel').addEventListener('change', e => { S.channel = e.target.value; if (S.vm) { S.routing = null; showTab(S.tab); } });
   }
 
   window.netCmdsShow = show;
-  window.openNetCmds = async (name, tab) => { await loadCatalog(); if (tab) S.tab = tab; open(name); };
+  window.openNetCmds = async (name, tab, toAfter) => {
+    await loadCatalog();
+    if (tab) S.tab = tab;
+    if (S.vm === name && S.routing) { showVmTab('cmds'); showTab(S.tab); renderAfter(); }
+    else open(name);
+    if (toAfter) setTimeout(() => { const b = $('#nc-r-after'); if (b) b.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 60);
+  };
   window.addEventListener('DOMContentLoaded', bind);
 })();
