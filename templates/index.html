@@ -254,6 +254,7 @@
                   <button type="button" data-mode="dhcp">DHCP</button>
                   <button type="button" data-mode="static">IP fija</button>
                   <button type="button" data-mode="extra">IP adicional</button>
+                  <button type="button" data-mode="remove" title="Quitar una de las IPs adicionales de la interfaz">Quitar IP adicional</button>
                 </div>
                 <p class="net-help" id="net-modehelp"></p>
                 <details class="net-learn" id="net-L-mode"><summary><span class="lt">Para entender</span><span class="net-ls"></span></summary><div class="net-lb"></div></details>
@@ -263,6 +264,8 @@
                 <h3><span class="k">3</span> Los datos <small>la columna Actual viene de la VM; Nuevo arranca lleno</small></h3>
                 <div class="net-fields" id="net-fields">
                   <div class="hd">Dato</div><div class="hd">Actual (leído)</div><div class="hd">Nuevo</div>
+                  <div class="row" data-k="rm" id="net-r-rm" hidden><div class="lab">IP adicional que se quita</div><div class="cur" id="net-a-rm"></div>
+                    <div class="new"><select id="net-f-rm" aria-label="IP adicional que se quita"></select></div></div>
                   <div class="row" data-k="ip"><div class="lab">Dirección IP</div><div class="cur" id="net-a-ip"></div>
                     <div class="new"><input id="net-f-ip" aria-label="Nueva dirección IP" autocomplete="off" spellcheck="false"><span class="hint" id="net-h-ip"></span></div></div>
                   <div class="row" data-k="mask"><div class="lab">Máscara <small>255.255.255.0 o /24</small></div><div class="cur" id="net-a-mask"></div>
@@ -686,7 +689,7 @@
   </dialog>
 
   <script src="/static/app.js?v=28"></script>
-  <script src="/static/network.js?v=26"></script>
+  <script src="/static/network.js?v=27"></script>
   <script src="/static/netcmds.js?v=1"></script>
 </body>
 </html>

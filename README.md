@@ -18,7 +18,7 @@ Equipo físico (Windows)
 - **Máquinas virtuales**: crear desde plantillas (imágenes oficiales de nube con cloud-init), encender, apagar, editar CPU y memoria, renombrar, eliminar, discos adicionales y compartidos.
 - **Tarjetas de red**: agregar o quitar tarjetas (hasta 8; con la VM apagada) en NAT, puente, solo anfitrión, red interna o red NAT.
 - **Redes virtuales**: listar las redes de VirtualBox (NAT, puente, solo anfitrión, internas, red NAT) con las VMs conectadas a cada una, crear redes internas (con o sin DHCP) y redes NAT, y crear de un clic las del laboratorio (**LAN A** `interna:lan-a` 192.168.10.0/24 y **LAN B** `interna:lan-b` 192.168.20.0/24). En el inventario, el filtro **Red** (o un clic en la red de una VM) muestra solo las VMs conectadas a esa red.
-- **Configuración de red** (cambia la VM): lee la red real de la VM, detecta el gestor (ifupdown, Netplan, NetworkManager, systemd-networkd), y configura IP fija, DHCP o IP adicional, puerta de enlace y DNS de cada interfaz. Valida, muestra el archivo, los comandos y las rutas resultantes, y aplica con respaldo y **reversión automática** si algo falla. Incluye el **reenvío IPv4** (la VM como router).
+- **Configuración de red** (cambia la VM): lee la red real de la VM, detecta el gestor (ifupdown, Netplan, NetworkManager, systemd-networkd), y configura IP fija, DHCP, IP adicional (agregar o **quitar**), puerta de enlace y DNS de cada interfaz. Valida, muestra el archivo, los comandos y las rutas resultantes, y aplica con respaldo y **reversión automática** si algo falla. Incluye el **reenvío IPv4** (la VM como router).
 - **Comandos de red** (solo consulta y diagnóstico, no cambia nada): tabla de rutas (`ip route`), direcciones (`ip addr`), vecinos ARP (`ip neigh`, `arp -a`), puertos en escucha (`ss -tulnp`), conexiones (`ss -tan`, `netstat -ant`), `ping`, `tracepath` y captura de paquetes (`tcpdump`). Se escoge el comando de un catálogo; no se escriben comandos libres.
 - Módulos heredados: comandos remotos en un equipo (SSH), llaves SSH, usuarios de Windows y configuración.
 
@@ -153,7 +153,7 @@ $env:VBOX_LIVE=1; go test ./mv -run Live -v
 
 Las rutas `/network*` aceptan `?canal=gestion` para usar el canal de gestión.
 
-Cuerpo de `plan` y `apply`: `{"interface":"enp0s8","mode":"static","ip":"192.168.10.10","mask":"/24","gateway":"192.168.10.1","role":"routes","nets":"192.168.20.0/24","dns":""}`. `mode`: `dhcp`, `static` o `extra`; `role`: `main`, `backup`, `routes` o `none`.
+Cuerpo de `plan` y `apply`: `{"interface":"enp0s8","mode":"static","ip":"192.168.10.10","mask":"/24","gateway":"192.168.10.1","role":"routes","nets":"192.168.20.0/24","dns":""}`. `mode`: `dhcp`, `static`, `extra` (agrega `ip`) o `remove` (quita la IP adicional `ip`; lo demás no cambia); `role`: `main`, `backup`, `routes` o `none`.
 
 ## Estructura
 

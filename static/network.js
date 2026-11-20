@@ -116,9 +116,10 @@
     let h = '';
     if (S.mode === 'dhcp') h += P('DHCP.', 'Definido en el ' + R('rfc2131') + '. La VM pide su configuración y un servidor le presta una IP por un tiempo; las opciones del ' + R('rfc2132') + ' traen la máscara (1), la puerta de enlace (3) y el DNS (6). En la red NAT de VirtualBox, ese servidor es el propio VirtualBox ' + R('vboxnet') + '.');
     else if (S.mode === 'static') h += P('IP fija.', 'La configuración mínima de un host según el ' + R('rfc1122') + ': dirección, máscara y, si va a salir de su red, una puerta de enlace; el DNS se agrega para resolver nombres. Conviene elegirla <b>fuera del rango</b> que reparte el DHCP de la red, para que el servidor no se la entregue a otra VM ' + R('vboxnet') + '.');
+    else if (S.mode === 'remove') h += P('Quitar una IP adicional.', 'Es lo contrario de agregarla: sale del archivo del gestor de red, para que no vuelva al reiniciar, y de la tarjeta con <code>ip addr del</code> ' + R('manipaddr') + ', porque no todos los gestores la borran en vivo (ifupdown nunca lo hace). La IP principal, la puerta de enlace y el DNS no se tocan, y la IP quitada queda libre para otro equipo.');
     else h += P('IP adicional.', 'Una interfaz puede tener varias direcciones ' + R('rfc1122', 'RFC 1122 §3.3.4') + '. Se agrega con <code>ip addr add</code> ' + R('manipaddr') + ' y queda en el archivo para que sobreviva al reinicio. Así una sola tarjeta física tiene «varias interfaces».');
     h += P('Cómo se hace en ' + distro().name + ':', distroRefs() + '.');
-    setL('net-L-mode', { dhcp: 'qué es DHCP', static: 'qué es una IP fija', extra: 'qué es una IP adicional' }[S.mode], h);
+    setL('net-L-mode', { dhcp: 'qué es DHCP', static: 'qué es una IP fija', extra: 'qué es una IP adicional', remove: 'cómo se quita una IP adicional' }[S.mode], h);
   }
   const LF = {
     ip: () => P('Dirección IP (IPv4).', '32 bits en cuatro números de 0 a 255 ' + R('rfc791') + '. 10/8, 172.16/12 y 192.168/16 son privadas ' + R('rfc1918') + '. La primera dirección de cada red la identifica y la última es el broadcast ' + R('rfc919') + ': no se asignan. Antes de aplicar, la app revisa las IP de las otras VMs del hipervisor y pregunta por ARP con arping si alguien ya la tiene ' + R('rfc5227') + ' ' + R('manarping') + '.'),
@@ -202,7 +203,8 @@
   const HELP = {
     dhcp: 'El servidor DHCP de la red entrega los datos. En la red NAT de VirtualBox, ese servidor es el propio VirtualBox.',
     static: 'Los datos se escriben a mano y no cambian. Es lo que necesita un servidor al que se entra por SSH.',
-    extra: 'La interfaz conserva su IP y suma otra. Puerta de enlace y DNS no cambian.'
+    extra: 'La interfaz conserva su IP y suma otra. Puerta de enlace y DNS no cambian.',
+    remove: 'Se quita una de las IPs adicionales. La IP principal, la puerta de enlace y el DNS no cambian.'
   };
   function suggestGw() {
     const ln = S.state.libvirt && S.state.libvirt[iface().mac.toLowerCase()];
@@ -211,11 +213,23 @@
     return n !== null && p ? n2ip(netOf(n, p) + 1) : '';
   }
   function renderMode() {
-    document.querySelectorAll('#net-modes button').forEach(b => { b.setAttribute('aria-pressed', b.dataset.mode === S.mode); b.disabled = S.busy; });
+    const i = iface();
+    document.querySelectorAll('#net-modes button').forEach(b => {
+      b.setAttribute('aria-pressed', b.dataset.mode === S.mode);
+      const noExtras = b.dataset.mode === 'remove' && !i.extras.length;
+      b.disabled = S.busy || noExtras;
+      if (b.dataset.mode === 'remove') b.title = noExtras ? i.name + ' no tiene IPs adicionales' : 'Quitar una de las IPs adicionales de ' + i.name;
+    });
     $('#net-modehelp').textContent = HELP[S.mode];
-    const st = S.mode === 'static', dh = S.mode === 'dhcp', i = iface();
-    const dis = { ip: dh, mask: dh, gw: !st || S.f.role === 'none', dns: !st || (S.state.manager === 'ifupdown' && S.f.role !== 'main'), nets: !st };
-    const ph = { ip: 'lo entrega el servidor DHCP', mask: 'lo entrega el servidor DHCP', gw: dh ? 'lo entrega el servidor DHCP' : st ? 'no aplica: sin puerta de enlace' : 'se conserva', dns: dh ? 'lo entrega el servidor DHCP' : st ? 'uno solo para la VM: lo pone la interfaz principal' : 'se conserva', nets: 'se conserva' };
+    const st = S.mode === 'static', dh = S.mode === 'dhcp', rm = S.mode === 'remove';
+    $('#net-r-rm').hidden = !rm;
+    if (rm) {
+      $('#net-f-rm').innerHTML = i.extras.map(x => `<option value="${esc(x)}"${x === S.f.rm ? ' selected' : ''}>${esc(x)}</option>`).join('');
+      $('#net-f-rm').disabled = S.busy;
+      $('#net-a-rm').textContent = i.extras.length + (i.extras.length === 1 ? ' adicional' : ' adicionales');
+    }
+    const dis = { ip: dh || rm, mask: dh || rm, gw: !st || S.f.role === 'none', dns: !st || (S.state.manager === 'ifupdown' && S.f.role !== 'main'), nets: !st };
+    const ph = { ip: rm ? 'se conserva' : 'lo entrega el servidor DHCP', mask: rm ? 'se conserva' : 'lo entrega el servidor DHCP', gw: dh ? 'lo entrega el servidor DHCP' : st ? 'no aplica: sin puerta de enlace' : 'se conserva', dns: dh ? 'lo entrega el servidor DHCP' : st ? 'uno solo para la VM: lo pone la interfaz principal' : 'se conserva', nets: 'se conserva' };
     Object.keys(dis).forEach(k => {
       const el = $('#net-f-' + k);
       el.disabled = dis[k] || S.busy;
@@ -230,12 +244,14 @@
   }
   function hints() {
     const p = parseMask(S.f.mask), n = ip2n(S.f.ip);
-    $('#net-h-mask').textContent = S.mode !== 'dhcp' && p !== null && p >= 8 && p <= 30 ? '= /' + p + ' = ' + n2ip(maskN(p)) : '';
-    $('#net-h-ip').textContent = S.mode !== 'dhcp' && n !== null && p !== null && p >= 8 && p <= 30 ? 'red ' + n2ip(netOf(n, p)) + '/' + p : '';
+    $('#net-h-mask').textContent = S.mode !== 'dhcp' && S.mode !== 'remove' && p !== null && p >= 8 && p <= 30 ? '= /' + p + ' = ' + n2ip(maskN(p)) : '';
+    $('#net-h-ip').textContent = S.mode !== 'dhcp' && S.mode !== 'remove' && n !== null && p !== null && p >= 8 && p <= 30 ? 'red ' + n2ip(netOf(n, p)) + '/' + p : '';
   }
   function prefill() {
     const i = iface();
+    if (S.mode === 'remove' && !i.extras.length) S.mode = 'static';
     S.f = { gw: i.gateway || '', dns: i.dns || '', role: i.role === 'none' && S.mode === 'static' && !S.state.interfaces.some(o => o.name !== i.name && !o.virtual && o.role === 'main') ? 'main' : i.role, nets: i.nets.join(', ') };
+    if (S.mode === 'remove') S.f.rm = i.extras[0];
     if (S.mode === 'extra') { S.f.ip = ''; S.f.mask = '/' + i.prefix; }
     else { S.f.ip = i.ip; S.f.mask = n2ip(maskN(i.prefix)); }
     if (S.mode === 'static' && !S.f.gw && isDef(S.f.role)) S.f.gw = suggestGw();
@@ -248,7 +264,7 @@
 
   // ---------- plan (validacion del servidor) ----------
   function request() {
-    return { interface: S.iface, mode: S.mode, ip: S.f.ip || '', mask: S.f.mask || '', gateway: S.f.gw || '', role: S.f.role || 'main', nets: S.f.nets || '', dns: S.f.dns || '' };
+    return { interface: S.iface, mode: S.mode, ip: (S.mode === 'remove' ? S.f.rm : S.f.ip) || '', mask: S.f.mask || '', gateway: S.f.gw || '', role: S.f.role || 'main', nets: S.f.nets || '', dns: S.f.dns || '' };
   }
   function requestPlan(delay) {
     clearTimeout(S.timer);
@@ -340,7 +356,7 @@
         $('#net-result').innerHTML = `<div class="net-result ${res.ok ? 'ok' : 'bad'}">${res.ok ? '<b>Listo.</b> ' : ''}${esc(res.message)}</div>`;
         if (res.state) {
           S.state = res.state;
-          if (res.ok) { if (S.mode === 'extra') S.mode = 'static'; prefill(); }
+          if (res.ok) { if (S.mode === 'extra') S.mode = 'static'; prefill(); } // prefill deja «remove» solo si quedan adicionales
         }
       }
     } catch (err) {
@@ -567,6 +583,7 @@
       S.mode = b.dataset.mode; prefill(); renderAll();
     });
     ['ip', 'mask', 'gw', 'dns', 'nets'].forEach(k => $('#net-f-' + k).addEventListener('input', e => { S.f[k] = e.target.value; hints(); requestPlan(250); }));
+    $('#net-f-rm').addEventListener('change', e => { S.f.rm = e.target.value; requestPlan(0); });
     $('#net-f-role').addEventListener('change', e => {
       S.f.role = e.target.value;
       if (S.f.role !== 'none' && !S.f.gw) S.f.gw = suggestGw();

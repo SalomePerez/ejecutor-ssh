@@ -10,8 +10,8 @@ import (
 // NetRequest es lo que el usuario decide en el panel: interfaz, modo y datos.
 type NetRequest struct {
 	Interface string `json:"interface"`
-	Mode      string `json:"mode"` // dhcp | static | extra
-	IP        string `json:"ip"`
+	Mode      string `json:"mode"` // dhcp | static | extra | remove
+	IP        string `json:"ip"`   // en remove: la IP adicional que se quita
 	Mask      string `json:"mask"`
 	Gateway   string `json:"gateway"`
 	Role      string `json:"role"` // main | backup | routes | none
@@ -37,6 +37,7 @@ type IfaceConfig struct {
 	DNS     string   `json:"dns"`
 	Extras  []string `json:"extras"`
 	Added   string   `json:"added,omitempty"`
+	Removed string   `json:"removed,omitempty"`
 }
 
 type NetFileLine struct {
@@ -408,8 +409,44 @@ func PlanNetwork(st *NetState, req NetRequest, revertSeconds int) *NetPlan {
 		}
 		cfg = &IfaceConfig{Mode: "static", IP: ip, Prefix: p, Gateway: gw, Role: role, Metric: metric, Nets: nets, DNS: dns, Extras: append([]string{}, i.Extras...)}
 
+	case "remove":
+		// Quitar una IP adicional: la principal, la puerta de enlace y el DNS
+		// no cambian; solo sale esa direccion del archivo y de la tarjeta.
+		want := strings.TrimSpace(req.IP)
+		removed := ""
+		var rest []string
+		for _, x := range i.Extras {
+			if removed == "" && (x == want || strings.HasPrefix(x, want+"/")) {
+				removed = x
+				continue
+			}
+			rest = append(rest, x)
+		}
+		switch {
+		case len(i.Extras) == 0:
+			add("bad", i.Name+" no tiene IPs adicionales que quitar.")
+		case want == "":
+			add("bad", "Escoja la IP adicional que se va a quitar.")
+		case want == i.IP || strings.HasPrefix(want, i.IP+"/"):
+			add("bad", want+" es la IP principal de "+i.Name+", no una adicional. Para cambiarla use IP fija o DHCP.")
+		case removed == "":
+			add("bad", want+" no es una IP adicional de "+i.Name+". Las adicionales son: "+strings.Join(i.Extras, ", ")+".")
+		default:
+			ip, _, _ := strings.Cut(removed, "/")
+			add("ok", fmt.Sprintf("Se quita %s de %s. La IP principal (%s/%d), la puerta de enlace y el DNS no cambian.", removed, i.Name, i.IP, i.Prefix))
+			if len(rest) > 0 {
+				add("info", "Quedan como adicionales: "+strings.Join(rest, ", ")+".")
+			}
+			add("info", "Las sesiones abiertas hacia "+ip+" se cerrarán y esa IP quedará libre para otro equipo.")
+			if rest == nil {
+				rest = []string{}
+			}
+			cfg = &IfaceConfig{Mode: i.Mode, IP: i.IP, Prefix: i.Prefix, Gateway: i.Gateway, Role: i.Role, Metric: i.Metric, Nets: append([]string{}, i.Nets...), DNS: i.DNS,
+				Extras: rest, Removed: removed}
+		}
+
 	default:
-		add("bad", "Modo no válido: use dhcp, static o extra.")
+		add("bad", "Modo no válido: use dhcp, static, extra o remove.")
 	}
 
 	if st.Manager == "ifupdown" && len(st.IfupdownD) > 0 {
@@ -794,7 +831,9 @@ func buildPhases(st *NetState, i *NetIface, cfg *IfaceConfig, mode string, plan 
 		target, _, _ = strings.Cut(cfg.Added, "/")
 	}
 	check := NetPhase{Name: "Comprobar", kind: "check"}
-	if mode != "dhcp" && target != i.IP {
+	if mode == "remove" {
+		check.Cmds = append(check.Cmds, NetCmd{Note: "no hay IP nueva que comprobar: se quita " + cfg.Removed})
+	} else if mode != "dhcp" && target != i.IP {
 		if st.HasArping {
 			check.Cmds = append(check.Cmds, NetCmd{Cmd: "arping -D -c 2 -w 3 -I " + I + " " + target, Note: "detección de duplicados (RFC 5227): debe recibir 0 respuestas", mustOK: true})
 		} else {
@@ -850,7 +889,7 @@ func buildPhases(st *NetState, i *NetIface, cfg *IfaceConfig, mode string, plan 
 		W = append(W, writeFileCmd(files[0], "644"))
 		A = append(A, NetCmd{Cmd: "networkctl reload", mustOK: true}, NetCmd{Cmd: "networkctl reconfigure " + I, mustOK: true})
 	case "ifupdown":
-		if mode != "extra" {
+		if mode != "extra" && mode != "remove" {
 			W = append(W, NetCmd{Cmd: "ifdown " + I, Note: "se baja con la configuración vieja", run: "ifdown " + I + " || true"})
 			if i.Mode == "dhcp" && mode == "static" {
 				W = append(W, NetCmd{Cmd: "dhclient -r " + I + "; dhcpcd -k " + I, Note: "suelta el lease por si quedó un cliente DHCP (lección del paso 7)", run: "dhclient -r " + I + " 2>/dev/null; dhcpcd -k " + I + " 2>/dev/null; true"})
@@ -862,6 +901,8 @@ func buildPhases(st *NetState, i *NetIface, cfg *IfaceConfig, mode string, plan 
 		if mode == "extra" {
 			A = append(A, NetCmd{Cmd: promoteCmd(I), Note: "si se borra la IP principal, la adicional no se va con ella", mustOK: true},
 				NetCmd{Cmd: "ip addr add " + cfg.Added + " dev " + I + extraLabel(I, len(cfg.Extras)), Note: "en vivo; el archivo la hace persistente", mustOK: true})
+		} else if mode == "remove" {
+			// La quita en vivo mas abajo, comun a todos los gestores.
 		} else {
 			A = append(A, NetCmd{Cmd: "ifup " + I, mustOK: true})
 		}
@@ -869,10 +910,28 @@ func buildPhases(st *NetState, i *NetIface, cfg *IfaceConfig, mode string, plan 
 		W = append(W, NetCmd{Cmd: "nmcli con mod " + quoteShell(i.Conn) + nmArgs(cfg), Note: "nmcli valida y guarda; no cambia nada hasta «con up»", mustOK: true})
 		A = append(A, NetCmd{Cmd: "nmcli con up " + quoteShell(i.Conn), mustOK: true})
 	}
+	if mode == "remove" {
+		// No todos los gestores borran en vivo una direccion que salio del
+		// archivo (ifupdown nunca; networkd segun la version): se borra a mano.
+		// Si el gestor ya la quito, "ip addr del" falla y no pasa nada.
+		A = append(A, NetCmd{Cmd: "ip addr del " + cfg.Removed + " dev " + I, Note: "en vivo, por si el gestor no la quitó al aplicar",
+			run: "ip addr del " + cfg.Removed + " dev " + I + " 2>/dev/null; true"})
+	}
 	phases = append(phases, NetPhase{Name: "Escribir", kind: "write", Cmds: W}, NetPhase{Name: "Aplicar", kind: "apply", Cmds: A})
 
 	var V []NetCmd
-	if mode == "dhcp" {
+	if mode == "remove" {
+		gone, _, _ := strings.Cut(cfg.Removed, "/")
+		V = append(V, NetCmd{Cmd: "ip -4 -o addr show dev " + I + " (sin " + gone + ")", Note: "la IP quitada ya no está en la tarjeta",
+			run: "! ip -4 -o addr show dev " + I + " | grep -q " + quoteShell("inet "+gone+"/"), mustOK: true, retries: 5})
+		if i.IP != "" {
+			V = append(V, NetCmd{Cmd: "ip -4 -o addr show dev " + I, Note: "la IP principal sigue en la tarjeta", expect: "inet " + i.IP + "/", retries: 5})
+		}
+		for _, x := range cfg.Extras {
+			ip, _, _ := strings.Cut(x, "/")
+			V = append(V, NetCmd{Cmd: "ip -4 -o addr show dev " + I, Note: "la adicional " + x + " sigue", expect: "inet " + ip + "/", retries: 3})
+		}
+	} else if mode == "dhcp" {
 		V = append(V, NetCmd{Cmd: "ip -4 -o addr show dev " + I, Note: "el servidor DHCP entregó una IP", expect: "inet ", retries: 15})
 	} else {
 		V = append(V, NetCmd{Cmd: "ip -4 -o addr show dev " + I, Note: "la IP pedida está en la tarjeta", expect: "inet " + target + "/", retries: 5})
@@ -883,7 +942,9 @@ func buildPhases(st *NetState, i *NetIface, cfg *IfaceConfig, mode string, plan 
 				run: "ip -4 -o addr show dev " + I + " | grep " + quoteShell("inet "+target+"/") + " | grep -v dynamic", mustOK: true, retries: 5})
 		}
 	}
-	if mode != "extra" {
+	if mode == "remove" {
+		// Nada mas: rutas y puerta de enlace no cambian.
+	} else if mode != "extra" {
 		if isDefRole(cfg.Role) {
 			exp := "dev " + I
 			if mode == "static" {
