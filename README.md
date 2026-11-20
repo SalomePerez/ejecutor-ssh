@@ -22,7 +22,7 @@ Equipo físico (Windows)
 - **Enrutamiento y diagnóstico** (no cambia las direcciones de las tarjetas), en tres secciones:
   - **Rutas**: la tabla de rutas real de la VM (`ip -4 route`) en forma de tabla (destino, puerta de enlace, interfaz, origen, métrica), con la ruta por defecto que se usa marcada; «¿por dónde sale?» (`ip route get`), y **Rutas resultantes**: si hay un cambio en preparación en Configuración de red, la tabla actual (leída de la VM) y la resultante lado a lado, con `−` lo que sale o cambia y `+` lo nuevo.
   - **Reenvío IPv4**: estado y activar/desactivar (la VM como router), persistente en `/etc/sysctl.d/`.
-  - **Comandos**: direcciones (`ip addr`), vecinos ARP (`ip neigh`, `arp -a`), puertos en escucha (`ss -tulnp`), conexiones (`ss -tan`, `netstat -ant`), `ping`, `tracepath` y captura de paquetes (`tcpdump`). Se escoge el comando de un catálogo y se ve la línea exacta antes de ejecutarla; no se escriben comandos libres.
+  - **Comandos** (si falta una herramienta, como `net-tools` en Debian 13, se instala desde el mismo panel con apt, dnf o pacman): direcciones (`ip addr`), vecinos ARP (`ip neigh`, `arp -a`), puertos en escucha (`ss -tulnp`), conexiones (`ss -tan`, `netstat -ant`), `ping`, `tracepath` y captura de paquetes (`tcpdump`). Se escoge el comando de un catálogo y se ve la línea exacta antes de ejecutarla; no se escriben comandos libres.
 - Módulos heredados: comandos remotos en un equipo (SSH), llaves SSH, usuarios de Windows y configuración.
 
 ## Mecanismos de acceso a una VM

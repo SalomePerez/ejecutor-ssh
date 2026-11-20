@@ -352,3 +352,5 @@ a.net-fn:hover { color: var(--teal); }
 .nc-cmp .fp b { color: var(--ink); }
 .nc-cmp pre .ln { display: block; padding-left: 1.4em; text-indent: -1.4em; padding-block: 1px; }
 .nc-cmp pre .ln + .ln { border-top: 1px dashed color-mix(in srgb, var(--line) 70%, transparent); }
+.nc-install { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 10px; }
+.nc-install small { color: var(--muted); font-size: .8rem; flex: 1 1 16rem; }

@@ -306,12 +306,31 @@
       if (c.id === 'addr') learnIfaces(lines);
       out.innerHTML = terminal(lines);
       const warn = res.steps.some(s => s.status === 'warn');
-      if (res.message) $('#nc-result').innerHTML = `<div class="net-result ${warn ? 'warn' : res.ok ? 'ok' : 'bad'}">${esc(res.message)}</div>`;
+      if (res.message) $('#nc-result').innerHTML = `<div class="net-result ${warn ? 'warn' : res.ok ? 'ok' : 'bad'}">${esc(res.message)}` +
+        (res.install ? `<div class="nc-install"><button type="button" class="btn-primary" data-install="${esc(res.install)}">Instalar en ${esc(S.vm)} y volver a ejecutar</button><small>Usa apt, dnf o pacman según la distribución. La VM necesita salida a Internet; puede tardar un par de minutos.</small></div>` : '') + '</div>';
     } else {
       out.hidden = true;
       $('#nc-result').innerHTML = `<div class="net-result bad"><b>No se ejecutó.</b> ${esc(d.error || 'error desconocido')}</div>`;
     }
     renderParams();
+  }
+
+  // Instala la herramienta que falta (net-tools, tcpdump…) y repite el comando.
+  async function install(tool) {
+    if (!S.vm || S.busy) return;
+    S.busy = true;
+    renderParams();
+    const out = $('#nc-out');
+    out.hidden = false;
+    out.innerHTML = `<span class="nt"># instalando en ${esc(S.vm)}… (puede tardar un par de minutos)</span>`;
+    $('#nc-result').innerHTML = '';
+    const d = await post('/network/cmd', { cmd: 'install', tool });
+    S.busy = false;
+    const res = d.data && d.data.steps ? d.data : null;
+    out.innerHTML = res ? terminal(res.steps.flatMap(s => s.lines || [])) : '';
+    $('#nc-result').innerHTML = `<div class="net-result ${d.success ? 'ok' : 'bad'}">${esc(d.message || d.error || 'error')}</div>`;
+    renderParams();
+    if (d.success) run(new Event('submit'));
   }
 
   // ---------- abrir una VM ----------
@@ -356,6 +375,7 @@
       renderCmds();
     });
     $('#nc-params').addEventListener('submit', run);
+    $('#nc-result').addEventListener('click', e => { const b = e.target.closest('[data-install]'); if (b) install(b.dataset.install); });
     $('#nc-params').addEventListener('input', () => { readParams(); $('#nc-c-line').textContent = cmdLine(S.cmd); });
     $('#nc-r-reload').addEventListener('click', () => { if (S.vm) loadRouting(); });
     $('#nc-r-probe').addEventListener('submit', probe);

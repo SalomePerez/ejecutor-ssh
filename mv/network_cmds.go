@@ -21,6 +21,7 @@ type NetCmdRequest struct {
 	Iface  string `json:"iface,omitempty"`  // tcpdump
 	Count  int    `json:"count,omitempty"`  // tcpdump: paquetes (1-50)
 	Filter string `json:"filter,omitempty"` // tcpdump: uno de tcpdumpFilters
+	Tool   string `json:"tool,omitempty"`   // cmd "install": la herramienta que falta (arp, netstat…)
 }
 
 // NetCmdInfo describe un comando del catalogo para la interfaz web.
@@ -202,6 +203,9 @@ func runNetCommand(p netBackend, name string, req NetCmdRequest) (*ApplyResult, 
 	if err := ValidateName(name); err != nil {
 		return nil, err
 	}
+	if req.Cmd == "install" {
+		return installTool(p, name, req.Tool)
+	}
 	d, err := validateNetCmd(&req)
 	if err != nil {
 		return nil, err
@@ -220,6 +224,10 @@ func runNetCommand(p netBackend, name string, req NetCmdRequest) (*ApplyResult, 
 			step.Lines = append(step.Lines, line)
 			step.Status = "warn"
 			result.Message = pkgNote(d.bin, d.pkg)
+			if title, ok := Installable(d.bin); ok {
+				result.Install = d.bin
+				result.Message = d.bin + " no viene instalado en esta VM: es parte de " + title + ", que muchas distribuciones ya no instalan por defecto. Puede instalarlo aquí mismo."
+			}
 			result.Steps = []ApplyStep{step}
 			return result, nil
 		}

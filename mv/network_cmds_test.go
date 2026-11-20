@@ -122,3 +122,32 @@ func TestNeighHint(t *testing.T) {
 		t.Fatalf("neigh con FAILED: %v %+v", err, res)
 	}
 }
+
+func TestMissingToolOffersInstall(t *testing.T) {
+	b := &scriptBackend{respond: func(string) (string, int) { return missingMarker + "\n", 127 }}
+	res, _ := runNetCommand(b, "lab-a", NetCmdRequest{Cmd: "arp"})
+	if res.Install != "arp" || !strings.Contains(res.Message, "net-tools") {
+		t.Fatalf("debe ofrecer instalar net-tools: %+v", res)
+	}
+}
+
+func TestInstallTool(t *testing.T) {
+	b := &scriptBackend{respond: func(string) (string, int) { return "arp quedó instalado: /usr/sbin/arp", 0 }}
+	res, err := runNetCommand(b, "lab-a", NetCmdRequest{Cmd: "install", Tool: "arp"})
+	if err != nil || !res.OK {
+		t.Fatalf("instalar: %v %+v", err, res)
+	}
+	sc := b.scripts[0]
+	for _, want := range []string{"apt-get install -y -q net-tools", "dnf install -y -q net-tools", "pacman -Sy --noconfirm --needed net-tools", "command -v arp"} {
+		if !strings.Contains(sc, want) {
+			t.Errorf("falta %q en el script", want)
+		}
+	}
+	if _, err := runNetCommand(b, "lab-a", NetCmdRequest{Cmd: "install", Tool: "nmap; reboot"}); err == nil {
+		t.Error("solo se instalan los paquetes de la lista")
+	}
+	fail := &scriptBackend{respond: func(string) (string, int) { return "Temporary failure resolving 'deb.debian.org'", 100 }}
+	if res, _ := runNetCommand(fail, "lab-a", NetCmdRequest{Cmd: "install", Tool: "tcpdump"}); res.OK || !strings.Contains(res.Message, "Internet") {
+		t.Errorf("sin Internet debe fallar y decirlo: %+v", res)
+	}
+}
