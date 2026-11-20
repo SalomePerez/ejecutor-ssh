@@ -1,7 +1,7 @@
 // ============================================================
 // Ejecutor SSH — logica de la interfaz
 // Modulos: VMs (lista y creacion; la configuracion de red vive en network.js y
-// los comandos de red en netcmds.js), Comandos remotos (equipo),
+// el enrutamiento y diagnostico en netcmds.js), Comandos remotos (equipo),
 // Llaves SSH, Usuarios y Configuracion. Avisos con toast() y dialogos con
 // ask(), en lugar de alert/confirm/prompt del navegador.
 // ============================================================
@@ -628,7 +628,7 @@ function renderVMs() {
           ? '<button type="button" class="btn-small" data-act="stop">Apagar</button>'
           : '<button type="button" class="btn-small go" data-act="start">Encender</button>'}
         <button type="button" class="btn-small" data-act="net"${running ? '' : ' disabled title="Encienda la VM: la red se lee por el canal interno"'}>Configurar red</button>
-        <button type="button" class="btn-small" data-act="cmds"${running ? '' : ' disabled title="Encienda la VM: los comandos corren dentro de ella"'}>Comandos de red</button>
+        <button type="button" class="btn-small" data-act="cmds"${running ? '' : ' disabled title="Encienda la VM: la tabla de rutas y los comandos se leen dentro de ella"'}>Enrutamiento y diagnóstico</button>
         <button type="button" class="btn-small" data-act="disks" aria-expanded="false">Discos</button>
         <button type="button" class="btn-small" data-act="nics" aria-expanded="false">Tarjetas</button>
         <button type="button" class="btn-small" data-act="edit" aria-expanded="false">Editar</button>
@@ -873,24 +873,6 @@ document.addEventListener('click', e => {
   setNetFilter(b.dataset.netFilter);
 });
 
-// Redes del laboratorio: crea las que falten (internas, sin DHCP).
-const LAB_NETS = [{ name: 'lan-a', subnet: '192.168.10.0/24' }, { name: 'lan-b', subnet: '192.168.20.0/24' }];
-$('#vnet-lab').addEventListener('click', async e => {
-  const statusEl = $('#vnet-lab-status');
-  const btn = e.currentTarget;
-  busy(btn, true, 'Creando…');
-  const done = [], had = [], failed = [];
-  for (const n of LAB_NETS) {
-    if (vnetCache.some(v => v.name === 'interna:' + n.name)) { had.push(n.name); continue; }
-    const r = await api('/api/networks', { method: 'POST', body: { name: n.name, mode: 'isolated', subnet: n.subnet, dhcp: false } });
-    if (r.ok && r.data.success) done.push(n.name); else failed.push(n.name + ': ' + errMsg(r, 'error'));
-  }
-  busy(btn, false);
-  const msg = [done.length ? 'Creadas: ' + done.join(', ') + '.' : '', had.length ? 'Ya existían: ' + had.join(', ') + '.' : '', failed.length ? 'Fallaron: ' + failed.join('; ') : ''].filter(Boolean).join(' ');
-  statusBox(statusEl, failed.length ? 'error' : 'success', msg);
-  loadVirtualNetworks();
-});
-
 function fillNetworkSelects() {
   const main = $('#vm-net-main');
   const current = main.value || 'default';
@@ -1130,12 +1112,12 @@ window.addEventListener('DOMContentLoaded', async () => {
   loadTemplates();
   loadVirtualNetworks();
   // Enlace directo: #vms/red/<vm> abre la configuracion de red de esa VM y
-  // #vms/comandos/<vm>, sus comandos de red.
-  const [start, sub, vmName] = decodeURIComponent((location.hash || '').slice(1) || store.get('tab', 'vms')).split('/');
+  // #vms/diagnostico/<vm>, su enrutamiento y diagnostico.
+  const [start, sub, vmName, part] = decodeURIComponent((location.hash || '').slice(1) || store.get('tab', 'vms')).split('/');
   showTab(start);
   if (start !== 'vms') listVMs({ quiet: true }); // la pastilla del hipervisor siempre se actualiza
   if (start === 'vms' && sub === 'red' && vmName) window.openNetwork(vmName);
-  else if (start === 'vms' && sub === 'comandos' && vmName) window.openNetCmds(vmName);
+  else if (start === 'vms' && (sub === 'diagnostico' || sub === 'comandos') && vmName) window.openNetCmds(vmName, { reenvio: 'fwd', comandos: 'cmds', rutas: 'routes' }[part]);
   else if (start === 'vms' && sub === 'docs') window.showVmTab('docs');
   else if (start === 'vms' && sub === 'redes') window.showVmTab('nets');
   else if (start === 'vms' && sub === 'filtro' && vmName) setNetFilter(vmName); // #vms/filtro/interna:lan-a

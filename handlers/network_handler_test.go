@@ -115,6 +115,19 @@ func TestNetworkHandler_RejectsBadName(t *testing.T) {
 	}
 }
 
+func (f *fakeNetProvider) ReadRouting(name string) (*vm.RoutingInfo, error) {
+	routes, summary, _ := vm.ParseRoutes("default via 10.0.2.2 dev enp0s3 proto dhcp metric 100")
+	return &vm.RoutingInfo{Routes: routes, Summary: summary, Forwarding: true}, nil
+}
+
+func TestRoutingEndpoint(t *testing.T) {
+	h, _ := newNetHandler()
+	rec, resp := doJSON(h, http.MethodGet, "/api/vms/lab-a/network/routing", nil)
+	if rec.Code != http.StatusOK || !resp.Success {
+		t.Fatalf("GET /network/routing: %d %+v", rec.Code, resp)
+	}
+}
+
 func (f *fakeNetProvider) RunNetCommand(name string, req vm.NetCmdRequest) (*vm.ApplyResult, error) {
 	return &vm.ApplyResult{OK: true, Message: req.Cmd}, nil
 }

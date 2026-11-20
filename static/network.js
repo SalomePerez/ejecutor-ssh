@@ -138,14 +138,13 @@
     const txt = {
       file: P('El archivo.', {
         netplan: 'La app no edita <code>50-cloud-init.yaml</code>: escribe su propio archivo <code>90-ejecutor-…yaml</code>. Netplan une los archivos en orden alfabético y el de número mayor manda ' + R('netplan') + '. Además apaga la red de cloud-init para que no la vuelva a escribir al reiniciar ' + R('cloudinit') + '.',
-        networkd: 'Archivo <code>.network</code> de systemd-networkd ' + R('mannetworkd') + '. El prefijo <code>10-</code> hace que se lea antes que los demás.',
+        networkd: 'Archivo <code>.network</code> de systemd-networkd ' + R('mannetworkd') + '. El prefijo <code>05-</code> hace que se lea antes que los de cloud-init (<code>10-…</code>): networkd usa el primer archivo que coincide.',
         ifupdown: 'Formato de <code>/etc/network/interfaces</code> ' + R('maninterfaces') + ' ' + R('dah', 'Manual de Debian §8.2') + '.',
         nm: 'NetworkManager guarda cada conexión en <code>/etc/NetworkManager/system-connections/</code>. La app no edita el archivo: lo cambia con ' + R('mannmcli') + ' ' + R('nmsettings') + '.'
       }[m] || '') + P('Manual de ' + distro().name + ':', distroRefs() + '.'),
       cmd: P('Por qué cada fase.', '<code>arping -D</code> comprueba que la IP esté libre ' + R('rfc5227') + '. ' + R('mansystemdrun') + ' programa la vuelta atrás dentro de la VM. La verificación lee el estado real con ' + R('manipaddr') + ' y ' + R('maniproute') + '. Las líneas marcadas <i>hipervisor</i> se ejecutan en el host, no en la VM.'),
-      route: P('Cómo elige el kernel.', 'Gana la ruta más específica (prefijo más largo); si empatan, la de menor métrica ' + R('rfc1812', 'RFC 1812 §5.2.4.3') + ' ' + R('rfc4632') + '. Las líneas <code>proto kernel scope link</code> las crea el kernel por tener una IP en esa red.')
     }[S.tab];
-    setL('net-L-prev', { file: 'cómo se lee este archivo', cmd: 'por qué cada fase', route: 'cómo elige el kernel la ruta (rutas resultantes)' }[S.tab], txt);
+    setL('net-L-prev', { file: 'cómo se lee este archivo', cmd: 'por qué cada fase' }[S.tab], txt);
   }
 
   // ---------- render ----------
@@ -164,8 +163,8 @@
       `<span class="net-chip">${esc(st.os || 'sistema desconocido')}</span><span class="net-chip">${esc(st.managerName || 'gestor no reconocido')}</span>` +
       (st.forwarding ? '<span class="net-chip warm">reenvío IPv4 activo (router)</span>' : '<span class="net-chip dim">sin reenvío IPv4</span>') +
       (st.cloudInit ? '<span class="net-chip dim">cloud-init</span>' : '') +
-      ` <button type="button" class="btn-small" id="net-fwd" title="net.ipv4.ip_forward: la VM pasa paquetes entre sus interfaces">${st.forwarding ? 'Desactivar reenvío' : 'Activar reenvío (router)'}</button>`;
-    $('#net-fwd').onclick = toggleForwarding;
+      ` <button type="button" class="btn-small" id="net-goroute" title="Tabla de rutas real y reenvío IPv4 de esta VM">Ver rutas y reenvío →</button>`;
+    $('#net-goroute').onclick = () => window.openNetCmds && window.openNetCmds(S.vm);
     $('#net-distline').innerHTML = 'Manual de ' + esc(distro().name) + ': ' + distroRefs();
     $('#net-raw').innerHTML = st.raw.map(c => `<span class="k2">$ ${esc(c.cmd)}</span>\n<span class="o">${esc(c.output)}</span>`).join('\n');
   }
@@ -290,46 +289,24 @@
     btn.textContent = 'Aplicar con reversión (' + (S.plan.revertSeconds || S.revert) + ' s)';
   }
   function renderPreview() {
-    ['file', 'cmd', 'route'].forEach(t => $('#net-t-' + t).setAttribute('aria-selected', S.tab === t));
+    ['file', 'cmd'].forEach(t => $('#net-t-' + t).setAttribute('aria-selected', S.tab === t));
     learnPrev();
     const box = $('#net-preview');
     const pl = S.plan;
     if (!pl || !pl.valid) {
-      box.innerHTML = '<div class="net-placeholder">Cuando los datos pasen la validación, aquí aparece ' + { file: 'el archivo que se escribirá.', cmd: 'la lista exacta de comandos.', route: 'cómo quedará la tabla de rutas.' }[S.tab] + '</div>';
+      box.innerHTML = '<div class="net-placeholder">Cuando los datos pasen la validación, aquí aparece ' + { file: 'el archivo que se escribirá.', cmd: 'la lista exacta de comandos.' }[S.tab] + '</div>';
       return;
     }
     if (S.tab === 'file') {
       box.innerHTML = pl.files.map(f => `<div class="net-file"><div class="fp">${esc(f.path)}${f.note ? '  (' + esc(f.note) + ')' : ''}</div><pre>` +
         f.lines.map(l => l.changed ? `<span class="chg">${esc(l.text)}</span>` : /^\s*#/.test(l.text) ? `<span class="cm">${esc(l.text)}</span>` : esc(l.text)).join('\n') + '</pre></div>').join('');
-    } else if (S.tab === 'cmd') {
+    } else {
       box.innerHTML = '<pre class="net-term">' + pl.phases.map((ph, n) => `<span class="ph"># ${n + 1}. ${esc(ph.name)}</span>` +
         ph.cmds.map(c => (c.cmd ? (c.host ? '<span class="app">[hipervisor]</span> $ ' : '$ ') + esc(c.cmd) : '') + (c.note ? `${c.cmd ? '   ' : ''}<span class="nt"># ${esc(c.note)}</span>` : '')).join('\n')).join('\n') + '</pre>';
-    } else {
-      box.innerHTML = `<div class="net-file"><div class="fp">${esc(pl.routeSummary)}</div><pre><span class="cm"># ip r — así quedará la tabla de rutas</span>\n` +
-        pl.routes.map(r => r.state === 'new' ? `<span class="chg">${esc(r.text)}</span>` : r.state === 'gone' ? `<span class="del">${esc(r.text)}</span>` : esc(r.text)).join('\n') + '</pre></div>';
     }
   }
 
   // ---------- aplicar ----------
-  // Reenvio IPv4: lo que convierte a la VM en router entre sus redes.
-  async function toggleForwarding() {
-    const btn = $('#net-fwd');
-    const enabled = !S.state.forwarding;
-    btn.disabled = true;
-    btn.textContent = enabled ? 'Activando…' : 'Desactivando…';
-    let data;
-    try {
-      const r = await fetch('/api/vms/' + encodeURIComponent(S.vm) + '/network/forwarding' + qs(), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }) });
-      data = await r.json();
-    } catch (err) {
-      data = { success: false, error: err.message };
-    }
-    const lines = ((data.data && data.data.steps) || []).flatMap(s => s.lines).map(l => '$ ' + l.cmd + (l.output ? '\n' + l.output : '')).join('\n');
-    if (window.toast) window.toast(data.success ? 'success' : 'error', (data.message || data.error || 'error') + (lines ? '\n\n' + lines : ''), data.success ? 8000 : 0);
-    if (data.data && data.data.state) { S.state = data.data.state; renderAll(); }
-    else { btn.disabled = false; renderHead(); }
-  }
-
   async function apply() {
     if (!S.plan || !S.plan.valid || S.busy) return;
     S.busy = true;
@@ -597,7 +574,7 @@
       const b = e.target.closest('[data-lf]'); if (!b) return;
       S.lf = b.dataset.lf; learnField();
     });
-    ['file', 'cmd', 'route'].forEach(t => $('#net-t-' + t).addEventListener('click', () => { S.tab = t; renderPreview(); }));
+    ['file', 'cmd'].forEach(t => $('#net-t-' + t).addEventListener('click', () => { S.tab = t; renderPreview(); }));
     $('#net-reset').addEventListener('click', () => { if (!S.busy) { prefill(); renderAll(); } });
     $('#net-apply').addEventListener('click', apply);
     $('#net-loading').addEventListener('click', e => {

@@ -17,9 +17,12 @@ Equipo físico (Windows)
 
 - **Máquinas virtuales**: crear desde plantillas (imágenes oficiales de nube con cloud-init), encender, apagar, editar CPU y memoria, renombrar, eliminar, discos adicionales y compartidos.
 - **Tarjetas de red**: agregar o quitar tarjetas (hasta 8; con la VM apagada) en NAT, puente, solo anfitrión, red interna o red NAT.
-- **Redes virtuales**: listar las redes de VirtualBox (NAT, puente, solo anfitrión, internas, red NAT) con las VMs conectadas a cada una, crear redes internas (con o sin DHCP) y redes NAT, y crear de un clic las del laboratorio (**LAN A** `interna:lan-a` 192.168.10.0/24 y **LAN B** `interna:lan-b` 192.168.20.0/24). En el inventario, el filtro **Red** (o un clic en la red de una VM) muestra solo las VMs conectadas a esa red.
-- **Configuración de red** (cambia la VM): lee la red real de la VM, detecta el gestor (ifupdown, Netplan, NetworkManager, systemd-networkd), y configura IP fija, DHCP, IP adicional (agregar o **quitar**), puerta de enlace y DNS de cada interfaz. Valida, muestra el archivo, los comandos y las rutas resultantes, y aplica con respaldo y **reversión automática** si algo falla. Incluye el **reenvío IPv4** (la VM como router).
-- **Comandos de red** (solo consulta y diagnóstico, no cambia nada): tabla de rutas (`ip route`), direcciones (`ip addr`), vecinos ARP (`ip neigh`, `arp -a`), puertos en escucha (`ss -tulnp`), conexiones (`ss -tan`, `netstat -ant`), `ping`, `tracepath` y captura de paquetes (`tcpdump`). Se escoge el comando de un catálogo; no se escriben comandos libres.
+- **Redes virtuales**: listar las redes de VirtualBox (NAT, puente, solo anfitrión, internas, red NAT) con las VMs conectadas a cada una, crear redes internas (con o sin DHCP) y redes NAT. En el inventario, el filtro **Red** (o un clic en la red de una VM) muestra solo las VMs conectadas a esa red.
+- **Configuración de red** (cambia la VM): lee la red real de la VM, detecta el gestor (ifupdown, Netplan, NetworkManager, systemd-networkd), y configura IP fija, DHCP, IP adicional (agregar o **quitar**), puerta de enlace y DNS de cada interfaz. Valida, muestra el archivo y los comandos exactos, y aplica con respaldo y **reversión automática** si algo falla.
+- **Enrutamiento y diagnóstico** (no cambia las direcciones de las tarjetas), en tres secciones:
+  - **Rutas**: la tabla de rutas real de la VM (`ip -4 route`) en forma de tabla (destino, puerta de enlace, interfaz, origen, métrica), con la ruta por defecto que se usa marcada, y «¿por dónde sale?» (`ip route get`).
+  - **Reenvío IPv4**: estado y activar/desactivar (la VM como router), persistente en `/etc/sysctl.d/`.
+  - **Comandos**: direcciones (`ip addr`), vecinos ARP (`ip neigh`, `arp -a`), puertos en escucha (`ss -tulnp`), conexiones (`ss -tan`, `netstat -ant`), `ping`, `tracepath` y captura de paquetes (`tcpdump`). Se escoge el comando de un catálogo y se ve la línea exacta antes de ejecutarla; no se escriben comandos libres.
 - Módulos heredados: comandos remotos en un equipo (SSH), llaves SSH, usuarios de Windows y configuración.
 
 ## Mecanismos de acceso a una VM
@@ -47,7 +50,7 @@ Cambiar la IP de una VM por SSH a esa misma IP corta la sesión. La app usa cana
 
 - El canal interno (Guest Additions) es el equivalente en VirtualBox de `qemu-guest-agent` (el canal del diseño anterior con libvirt).
 - En el canal de gestión (SSH) la IP de gestión se obtiene del servidor DHCP de VirtualBox (`dhcpserver findlease`), sin depender de las Guest Additions; con ese canal el plan **no permite modificar la interfaz de gestión**. Funciona igual con un equipo físico que tenga una interfaz de gestión.
-- En los paneles de Configuración de red y Comandos de red se elige el canal; en la API es el parámetro `?canal=gestion`.
+- En los paneles de Configuración de red y de Enrutamiento y diagnóstico se elige el canal; en la API es el parámetro `?canal=gestion`.
 
 ## Crear una VM
 
@@ -78,11 +81,11 @@ lab-debian (A, Netplan)          debian-red (R, ifupdown)            lab-ubuntu 
 192.168.10.10 ── interna:lan-a ── 192.168.10.1 | 192.168.20.1 ── interna:lan-b ── 192.168.20.10
 ```
 
-1. Redes virtuales → **Crear LAN A y LAN B** (`lan-a` 192.168.10.0/24 y `lan-b` 192.168.20.0/24, sin DHCP).
+1. Redes virtuales → crear las redes internas `lan-a` (192.168.10.0/24) y `lan-b` (192.168.20.0/24), sin DHCP.
 2. Tarjetas → A: `interna:lan-a`; B: `interna:lan-b`; R: las dos.
-3. Red → R: IP fija en cada tarjeta (sin puerta de enlace) y **Activar reenvío**.
-4. Red → A: `192.168.10.10/24`, puerta de enlace `192.168.10.1`, uso *solo hacia ciertas redes* `192.168.20.0/24`. B igual, en espejo.
-5. Probar conectividad desde A hacia `192.168.20.10`. Con el reenvío de R desactivado, el ping falla.
+3. Configuración de red → R: IP fija en cada tarjeta (`192.168.10.1/24` y `192.168.20.1/24`, sin puerta de enlace). Enrutamiento y diagnóstico → R → Reenvío IPv4: **Activar**.
+4. Configuración de red → A: `192.168.10.10/24`, puerta de enlace `192.168.10.1`, uso *solo hacia ciertas redes* `192.168.20.0/24`. B igual, en espejo.
+5. Enrutamiento y diagnóstico → A: en Rutas, «¿por dónde sale?» hacia `192.168.20.10` debe dar `via 192.168.10.1`; en Comandos, Ping. Con el reenvío de R desactivado, el ping falla.
 
 ## Configuración
 
@@ -148,8 +151,9 @@ $env:VBOX_LIVE=1; go test ./mv -run Live -v
 | `POST /api/vms/{vm}/network/apply` | aplicar con respaldo, verificación y reversión |
 | `POST /api/vms/{vm}/network/forwarding` `{"enabled":true}` | reenvío IPv4 persistente |
 | `POST /api/vms/{vm}/network/test` `{"target":"192.168.20.10"}` | ping, `ip route get`, `tracepath` |
+| `GET /api/vms/{vm}/network/routing` | tabla de rutas interpretada (`routes`, `summary`, `warning`) y estado del reenvío (`forwarding`) |
 | `GET /api/netcmds` | catálogo de comandos de red y filtros de captura |
-| `POST /api/vms/{vm}/network/cmd` `{"cmd":"route"}` | ejecuta un comando del catálogo: `addr`, `route`, `neigh`, `arp`, `ss`, `conns`, `netstat`, `ping` y `tracepath` (con `target`), `tcpdump` (con `iface`, `count` 1-50, `filter`) |
+| `POST /api/vms/{vm}/network/cmd` `{"cmd":"route"}` | ejecuta un comando del catálogo: `addr`, `route`, `neigh`, `arp`, `ss`, `conns`, `netstat`, `routeget`, `ping` y `tracepath` (con `target`), `tcpdump` (con `iface`, `count` 1-50, `filter`) |
 
 Las rutas `/network*` aceptan `?canal=gestion` para usar el canal de gestión.
 
@@ -167,9 +171,10 @@ mv/
   mgmt_channel.go       canal de gestión: SSH por la interfaz de gestión
   network*.go           detección, plan por gestor de red, aplicación con reversión,
                         reenvío IPv4 y prueba de conectividad (comunes a los proveedores)
-  network_cmds.go       catálogo de Comandos de red (consulta y diagnóstico)
+  network_cmds.go       catálogo de comandos de consulta y diagnóstico
+  network_routing.go    tabla de rutas interpretada y estado del reenvío
   libvirt*.go, guestagent.go   proveedor anterior (libvirt + qemu-guest-agent)
-static/, templates/     interfaz web (network.js: Configuración de red; netcmds.js: Comandos de red)
+static/, templates/     interfaz web (network.js: Configuración de red; netcmds.js: Enrutamiento y diagnóstico)
 ```
 
 ## Seguridad

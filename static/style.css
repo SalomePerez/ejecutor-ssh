@@ -248,8 +248,7 @@ button.chip.chip-btn { cursor: pointer; font-family: var(--font-ui); font-size: 
 .vnet-vms .chip { font-family: var(--font-ui); }
 .chip-btn:hover { text-decoration: underline; }
 .vnet-vms { display: inline-flex; flex-wrap: wrap; gap: 4px; }
-.lab-nets { margin: 4px 0 10px; padding-left: 18px; font-size: .88rem; display: grid; gap: 2px; }
-.sep-line { border: 0; border-top: 1px solid var(--line); margin: 16px 0; }
+
 
 .presets { display: flex; flex-wrap: wrap; gap: 6px; }
 .presets button { border: 1px solid var(--line); background: var(--sunk); border-radius: 99px; padding: 4px 11px; font-size: .8rem; color: var(--muted); }

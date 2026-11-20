@@ -8,8 +8,8 @@
     // Aplica el tema guardado antes de pintar, para que no parpadee.
     try { const t = localStorage.getItem('theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
   </script>
-  <link rel="stylesheet" href="/static/style.css?v=27">
-  <link rel="stylesheet" href="/static/network.css?v=26">
+  <link rel="stylesheet" href="/static/style.css?v=28">
+  <link rel="stylesheet" href="/static/network.css?v=27">
 </head>
 <body>
   <main class="shell">
@@ -42,7 +42,7 @@
           <button type="button" role="tab" data-vmtab="manage" aria-selected="true">Máquinas</button>
           <button type="button" role="tab" data-vmtab="nets" aria-selected="false">Redes virtuales</button>
           <button type="button" role="tab" data-vmtab="net" aria-selected="false" title="Cambiar la configuración de las interfaces: IP fija, DHCP, IP adicional, puerta de enlace, DNS">Configuración de red</button>
-          <button type="button" role="tab" data-vmtab="cmds" aria-selected="false" title="Consultar y diagnosticar la red: rutas, ping, conexiones, puertos, ARP, captura">Comandos de red</button>
+          <button type="button" role="tab" data-vmtab="cmds" aria-selected="false" title="Tabla de rutas, reenvío IPv4 y comandos para consultar y diagnosticar la red">Enrutamiento y diagnóstico</button>
           <button type="button" role="tab" data-vmtab="docs" aria-selected="false">Documentación</button>
         </div>
       </div>
@@ -171,15 +171,6 @@
           </section>
 
           <section class="card accent">
-            <h3>Redes del laboratorio</h3>
-            <p class="card-head sub">Las dos redes internas del escenario de prueba (una VM hace de router entre ellas). Se crean sin DHCP: las IPs se fijan en Configuración de red.</p>
-            <ul class="lab-nets">
-              <li><b>LAN A</b> · <code>interna:lan-a</code> · 192.168.10.0/24</li>
-              <li><b>LAN B</b> · <code>interna:lan-b</code> · 192.168.20.0/24</li>
-            </ul>
-            <div class="btn-row"><button type="button" class="btn-secondary" id="vnet-lab">Crear LAN A y LAN B</button></div>
-            <div id="vnet-lab-status" class="status-box" role="status"></div>
-            <hr class="sep-line">
             <h3>Crear red virtual</h3>
             <form id="vnet-form" class="form-group" novalidate>
               <div class="form-item">
@@ -293,7 +284,6 @@
                 <div class="net-ptabs" role="tablist">
                   <button type="button" role="tab" id="net-t-file" aria-selected="true">Archivo resultante</button>
                   <button type="button" role="tab" id="net-t-cmd" aria-selected="false">Comandos</button>
-                  <button type="button" role="tab" id="net-t-route" aria-selected="false" title="Cómo quedaría la tabla de rutas después del cambio. La tabla actual se consulta en Comandos de red">Rutas resultantes</button>
                 </div>
                 <div id="net-preview"></div>
                 <details class="net-learn" id="net-L-prev"><summary><span class="lt">Para entender</span><span class="net-ls"></span></summary><div class="net-lb"></div></details>
@@ -314,32 +304,106 @@
         </div>
       </div>
 
-      <!-- ---------- Sub-pestaña: Comandos de red (consulta y diagnóstico) ---------- -->
+      <!-- ---------- Sub-pestaña: Enrutamiento y diagnóstico ---------- -->
       <div class="vm-pane" id="vm-pane-cmds" role="tabpanel" hidden>
         <div class="net-layout">
           <aside class="net-vms" aria-label="Máquinas virtuales">
             <h3>Máquinas virtuales</h3>
             <div id="nc-vmlist" class="net-vmlist"><p class="placeholder">Cargando…</p></div>
-            <p class="net-vms-hint">Estos comandos solo consultan: no cambian la configuración de la VM. Para cambiarla, use «Configuración de red».</p>
+            <p class="net-vms-hint">Aquí se consulta y diagnostica la red de la VM. Las direcciones de cada tarjeta se cambian en «Configuración de red».</p>
           </aside>
 
           <section class="net-panel" id="nc-panel" aria-labelledby="nc-title">
             <div class="net-head">
-              <h2 id="nc-title">Comandos de red</h2>
+              <div>
+                <h2 id="nc-title">Enrutamiento y diagnóstico</h2>
+                <div class="nc-sub" id="nc-sub">Tabla de rutas, reenvío IPv4 y comandos de consulta.</div>
+              </div>
               <label class="net-channel">Canal
-                <select id="nc-channel" title="Por dónde entra la app a la VM para ejecutar el comando">
+                <select id="nc-channel" title="Por dónde entra la app a la VM">
                   <option value="">Canal interno · Guest Additions (sin red)</option>
                   <option value="gestion">Canal de gestión · SSH a la tarjeta de gestión</option>
                 </select>
               </label>
             </div>
+
+            <div class="nc-tabs" role="tablist" aria-label="Secciones">
+              <button type="button" role="tab" data-ntab="routes" aria-selected="true"><b>Rutas</b><small>por dónde sale cada paquete</small></button>
+              <button type="button" role="tab" data-ntab="fwd" aria-selected="false"><b>Reenvío IPv4</b><small>la VM como router</small></button>
+              <button type="button" role="tab" data-ntab="cmds" aria-selected="false"><b>Comandos</b><small>consultar y diagnosticar</small></button>
+            </div>
+
             <div class="nc-body">
-              <p class="net-help">Escoja un comando. La app arma la línea, la ejecuta dentro de la VM y muestra la salida tal cual. No se escriben comandos libres: solo los de esta lista, con un destino, una interfaz o un filtro validados.</p>
-              <div class="nc-catalog" id="nc-catalog"></div>
-              <form class="nc-params" id="nc-params" novalidate></form>
-              <details class="net-learn" id="nc-learn" open><summary><span class="lt">Para entender</span><span class="net-ls"></span></summary><div class="net-lb"></div></details>
-              <pre class="net-term" id="nc-out" aria-live="polite" hidden></pre>
-              <div id="nc-result"></div>
+              <div id="nc-empty" class="nc-empty">
+                <b>Escoja una máquina virtual encendida</b>
+                <span>en la lista de la izquierda, o con el botón «Enrutamiento y diagnóstico» de cada VM.</span>
+              </div>
+
+              <!-- Rutas -->
+              <section class="nc-pane" id="nc-p-routes" hidden>
+                <div class="nc-bar">
+                  <p class="nc-summary" id="nc-r-summary"></p>
+                  <div class="btn-row"><span class="nc-time" id="nc-r-time"></span><button type="button" class="btn-small" id="nc-r-reload">↻ Volver a leer</button></div>
+                </div>
+                <div class="notice warn" id="nc-r-warn" hidden></div>
+                <div class="nc-table-wrap">
+                  <table class="nc-table" id="nc-r-table">
+                    <thead><tr><th>Destino</th><th>Puerta de enlace</th><th>Interfaz</th><th>Origen</th><th>Métrica</th><th></th></tr></thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+                <form class="nc-probe" id="nc-r-probe" novalidate>
+                  <label class="nc-param">¿Por dónde sale un paquete hacia…? <input id="nc-r-target" placeholder="una IP o un nombre (8.8.8.8, debian.org)" autocomplete="off" spellcheck="false"></label>
+                  <button type="submit" class="btn-secondary">Consultar (ip route get)</button>
+                </form>
+                <pre class="net-term" id="nc-r-probe-out" hidden></pre>
+                <details class="net-raw"><summary>Ver la salida de <code>ip -4 route</code></summary><pre class="net-term" id="nc-r-raw"></pre></details>
+                <details class="net-learn" id="nc-r-learn"><summary><span class="lt">Para entender</span><span class="net-ls">cómo elige el kernel la ruta</span></summary><div class="net-lb"></div></details>
+              </section>
+
+              <!-- Reenvío IPv4 -->
+              <section class="nc-pane" id="nc-p-fwd" hidden>
+                <div class="nc-fwd" id="nc-f-card">
+                  <div class="nc-fwd-state">
+                    <span class="nc-dot" id="nc-f-dot"></span>
+                    <div><b id="nc-f-title"></b><span id="nc-f-text"></span></div>
+                  </div>
+                  <button type="button" class="btn-primary" id="nc-f-toggle"></button>
+                </div>
+                <div class="nc-steps">
+                  <h4>Qué hace la app al activarlo</h4>
+                  <ol>
+                    <li><code>sysctl -w net.ipv4.ip_forward=1</code> <span>lo activa de inmediato, en memoria.</span></li>
+                    <li><code>/etc/sysctl.d/90-ejecutor-forward.conf</code> <span>lo deja escrito para que sobreviva a un reinicio.</span></li>
+                    <li><code>sysctl net.ipv4.ip_forward</code> <span>verifica que quedó en 1.</span></li>
+                  </ol>
+                  <p class="net-help">Al desactivarlo, borra ese archivo, lo pone en 0 y avisa si otro archivo de <code>/etc/sysctl.d/</code> lo volvería a activar al reiniciar.</p>
+                </div>
+                <div class="net-run" id="nc-f-run" hidden>
+                  <pre class="net-term" id="nc-f-log" aria-live="polite"></pre>
+                  <div id="nc-f-result"></div>
+                </div>
+                <details class="net-learn" id="nc-f-learn"><summary><span class="lt">Para entender</span><span class="net-ls">qué es el reenvío y cuándo se necesita</span></summary><div class="net-lb"></div></details>
+              </section>
+
+              <!-- Comandos -->
+              <section class="nc-pane" id="nc-p-cmds" hidden>
+                <div class="nc-cmdlayout">
+                  <nav class="nc-catalog" id="nc-catalog" aria-label="Comandos"></nav>
+                  <div class="nc-detail">
+                    <div class="nc-dhead">
+                      <h3 id="nc-c-title"></h3>
+                      <span id="nc-c-pkg"></span>
+                    </div>
+                    <p class="net-help" id="nc-c-desc"></p>
+                    <div class="nc-line"><span class="lab">Se ejecutará</span><code id="nc-c-line"></code></div>
+                    <form class="nc-params" id="nc-params" novalidate></form>
+                    <pre class="net-term" id="nc-out" aria-live="polite" hidden></pre>
+                    <div id="nc-result"></div>
+                    <details class="net-learn" id="nc-learn"><summary><span class="lt">Para entender</span><span class="net-ls"></span></summary><div class="net-lb"></div></details>
+                  </div>
+                </div>
+              </section>
             </div>
           </section>
         </div>
@@ -365,7 +429,7 @@
                 <article class="net-card"><span class="no">2</span><h4>Paso 1 · Interfaz</h4><p>Aparecen todas las tarjetas que la app encontró. Las etiquetas dicen cuál tiene la ruta por defecto, de qué red del hipervisor es y cuáles son virtuales (Docker, VPN…), que no se configuran desde aquí. Si hay varias tarjetas, configúrelas una a la vez.</p></article>
                 <article class="net-card"><span class="no">3</span><h4>Paso 2 · Modo</h4><p><i>DHCP</i> si en esa red hay un servidor que entregue los datos (en la NAT de VirtualBox, el propio VirtualBox). <i>IP fija</i> para servidores. <i>IP adicional</i> para sumar una dirección sin quitar la actual.</p></article>
                 <article class="net-card"><span class="no">4</span><h4>Paso 3 · Los datos</h4><p>IP, máscara, puerta de enlace y DNS. En <i>Uso de la puerta de enlace</i> decida su papel: principal (una sola), respaldo, solo hacia ciertas redes o ninguna. La app valida contra la VM y contra las redes del hipervisor: mientras haya algo en rojo, Aplicar no se activa.</p></article>
-                <article class="net-card"><span class="no">5</span><h4>Paso 4 · Revise</h4><p>Tres pestañas: el archivo que se va a escribir, los comandos exactos (los marcados <i>hipervisor</i> corren en el host) y cómo queda la tabla de rutas. Lo resaltado es lo que cambia.</p></article>
+                <article class="net-card"><span class="no">5</span><h4>Paso 4 · Revise</h4><p>Dos pestañas: el archivo que se va a escribir y los comandos exactos (los marcados <i>hipervisor</i> corren en el host). Lo resaltado es lo que cambia. Después de aplicar, la tabla de rutas real está en «Enrutamiento y diagnóstico».</p></article>
                 <article class="net-card"><span class="no">6</span><h4>Aplicar</h4><p>La app respalda, programa dentro de la VM la vuelta atrás (el tiempo se cambia en Configuración), escribe, aplica y verifica. Si todo responde, cancela la vuelta atrás.</p></article>
                 <article class="net-card"><span class="no">7</span><h4>Si algo falla</h4><p>No hay que hacer nada: la app dispara la reversión y la VM vuelve a la configuración anterior. Si se perdiera la conexión con la app, la VM vuelve sola cuando venza el temporizador. Como último recurso, la consola de la VM en el hipervisor y el respaldo <code>.bak</code>.</p></article>
                 <article class="net-card read"><span class="no">+</span><h4>Para leer antes de usarla</h4>
@@ -408,7 +472,7 @@
             <li><div><b>Lee antes de escribir, y no supone nombres.</b><span>Un solo script, por el canal elegido (Guest Additions o SSH de gestión), lee <code>/etc/os-release</code>, los servicios activos, <code>ip -br link</code>, <code>/sys/class/net</code>, <code>ip -4 addr</code>, <code>ip r</code> y el DNS. De ahí salen el gestor de red, las tarjetas y la columna Actual.</span></div></li>
             <li><div><b>Un canal que no se corta.</b><span>La app no entra por la interfaz que modifica: le pide a VirtualBox que ejecute los comandos con las Guest Additions (lo normal), o, si la VM tiene la tarjeta opcional de gestión, entra por SSH a esa interfaz, que nunca se modifica. Cambiar la IP no corta ese canal; solo se cierran las sesiones SSH de los usuarios hacia la IP vieja.</span></div></li>
             <li><div><b>Conoce las redes del hipervisor.</b><span>Desde VirtualBox lee el tipo de red, el rango DHCP y la puerta de enlace. Así rechaza una IP que ya tiene otra VM y advierte si la IP fija cae en el rango que reparte el DHCP.</span></div></li>
-            <li><div><b>Varias tarjetas, varias puertas de enlace.</b><span>Cada tarjeta declara si su puerta de enlace es la principal, de respaldo, solo para ciertas redes o ninguna. La pestaña «Rutas resultantes» muestra cuál gana, y la app advierte si quedan dos rutas por defecto con la misma prioridad.</span></div></li>
+            <li><div><b>Varias tarjetas, varias puertas de enlace.</b><span>Cada tarjeta declara si su puerta de enlace es la principal, de respaldo, solo para ciertas redes o ninguna. La validación advierte si quedan dos rutas por defecto con la misma prioridad, y en «Enrutamiento y diagnóstico» la tabla de rutas real marca cuál se usa.</span></div></li>
             <li><div><b>Valida en el servidor.</b><span>La misma lógica decide la vista previa y el aplicar: red y broadcast, puerta de enlace en la subred, IP ocupada, otra red (el error de <code>192.168.10.23</code>). Al aplicar vuelve a leer la VM: nunca confía en una lectura vieja.</span></div></li>
             <li><div><b>No pelea con cloud-init.</b><span>En Ubuntu escribe su propio <code>90-ejecutor-…yaml</code> en vez de editar <code>50-cloud-init.yaml</code>, y apaga la red de cloud-init para que el cambio sobreviva al reinicio.</span></div></li>
             <li><div><b>Respaldo y reversión automática.</b><span>Antes de escribir respalda y programa con <code>systemd-run</code> la restauración dentro de la VM. Si la verificación pasa, la cancela; si falla, la dispara de inmediato.</span></div></li>
@@ -688,8 +752,8 @@
     </form>
   </dialog>
 
-  <script src="/static/app.js?v=28"></script>
-  <script src="/static/network.js?v=27"></script>
-  <script src="/static/netcmds.js?v=1"></script>
+  <script src="/static/app.js?v=29"></script>
+  <script src="/static/network.js?v=28"></script>
+  <script src="/static/netcmds.js?v=2"></script>
 </body>
 </html>

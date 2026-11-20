@@ -115,6 +115,11 @@ var netCmdCatalog = []netCmdDef{
 		build: func(NetCmdRequest) []NetCmd {
 			return []NetCmd{{Cmd: "netstat -ant", Note: "lo mismo que ss -tan, con la herramienta antigua"}}
 		}},
+	{info: NetCmdInfo{ID: "routeget", Title: "¿Por dónde sale?", Group: "Diagnosticar", Example: "ip route get <destino>", Package: "iproute2", Needs: []string{"target"}},
+		bin: "ip", pkg: "iproute2",
+		build: func(r NetCmdRequest) []NetCmd {
+			return []NetCmd{{Cmd: "ip route get " + r.Target, Note: "la ruta que escoge el kernel: interfaz, puerta de enlace e IP de origen"}}
+		}},
 	{info: NetCmdInfo{ID: "ping", Title: "Ping", Group: "Diagnosticar", Example: "ping -c 4 <destino>", Package: "iputils", Needs: []string{"target"}},
 		bin: "ping", pkg: "iputils-ping",
 		build: func(r NetCmdRequest) []NetCmd {
