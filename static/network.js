@@ -516,7 +516,9 @@
   }
   function showDoc(t) {
     document.querySelectorAll('.net-dtabs [data-dtab]').forEach(b => b.setAttribute('aria-selected', b.dataset.dtab === t));
-    ['manual', 'distro', 'bib'].forEach(k => { $('#net-d-' + k).hidden = k !== t; });
+    ['manual', 'distro', 'bib', 'creditos'].forEach(k => { $('#net-d-' + k).hidden = k !== t; });
+    // «Por qué está diseñado así» acompaña al manual, no a los créditos.
+    document.querySelector('#vm-pane-docs .net-why').hidden = t === 'creditos';
     if (t === 'manual') carousel();
     if (t === 'distro') renderDistros();
   }
@@ -608,5 +610,6 @@
   window.netPlanFor = vm => (S.vm === vm && S.plan && S.plan.valid && S.plan.routes)
     ? { plan: S.plan, iface: S.iface, mode: S.mode } : null;
   window.showVmTab = showVmTab;
+  window.showDoc = showDoc;
   window.addEventListener('DOMContentLoaded', bind);
 })();

@@ -205,6 +205,43 @@ a.net-fn:hover { color: var(--teal); }
 .net-why li b { display: block; }
 .net-why li span { color: var(--muted); font-size: .9rem; }
 
+/* creditos (compactos: caben en una pantalla) */
+.cr { display: grid; gap: 12px; }
+.cr-hero {
+  display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between;
+  padding: 16px 20px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--teal) 30%, var(--line));
+  background: linear-gradient(135deg, var(--teal-soft), var(--sunk));
+}
+.cr-kicker { font-size: .72rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.cr-title { margin: 2px 0 4px; font-size: 1.35rem; line-height: 1.15; color: var(--ink); }
+.cr-sub { margin: 0; font-size: .9rem; color: var(--ink); max-width: 70ch; }
+.cr-dir { display: flex; gap: 10px; align-items: center; padding: 8px 14px 8px 8px; border-radius: 99px; background: var(--panel); border: 1px solid var(--line); }
+.cr-av {
+  flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center;
+  font: 700 .78rem var(--font-ui); letter-spacing: .04em;
+  background: color-mix(in srgb, var(--c, var(--teal)) 16%, var(--panel)); color: var(--c, var(--teal));
+}
+.cr-name { display: block; font-size: .92rem; color: var(--ink); line-height: 1.25; }
+.cr-role, .cr-area { display: block; font-size: .8rem; color: var(--muted); }
+.cr-area { color: var(--c, var(--teal)); font-weight: 700; }
+.cr-team { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+.cr-card { display: grid; align-content: start; gap: 8px; padding: 14px 16px; border: 1px solid var(--line); border-top: 3px solid var(--c); border-radius: 12px; background: var(--sunk); }
+.cr-top { display: flex; gap: 10px; align-items: center; }
+.cr-card p { margin: 0; font-size: .85rem; line-height: 1.45; color: var(--muted); }
+
+/* la autora de la aplicacion: su propio color */
+.cr-star { border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--line)); border-top: 3px solid var(--accent); background: linear-gradient(160deg, var(--accent-soft), var(--panel) 75%); box-shadow: var(--shadow-sm); }
+.cr-star .cr-av { background: var(--accent); color: var(--accent-ink); }
+.cr-star p { color: var(--ink); }
+.cr-badge { justify-self: start; font-size: .72rem; font-weight: 700; padding: 2px 9px; border-radius: 99px; background: var(--accent); color: var(--accent-ink); }
+
+/* pie de pagina con los creditos, en todas las pestanas */
+.app-credits {
+  display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; justify-content: space-between;
+  padding: 14px 4px 0; border-top: 1px solid var(--line); font-size: .82rem; color: var(--muted);
+}
+.app-credits a { color: var(--teal); font-weight: 700; }
+
 @media (prefers-reduced-motion: reduce) { .net-learn > summary::before { transition: none; } }
 
 /* ---------- ajustes finos sobre los estilos base de style.css ---------- */

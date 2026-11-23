@@ -9,7 +9,7 @@
     try { const t = localStorage.getItem('theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
   </script>
   <link rel="stylesheet" href="/static/style.css?v=28">
-  <link rel="stylesheet" href="/static/network.css?v=30">
+  <link rel="stylesheet" href="/static/network.css?v=32">
 </head>
 <body>
   <main class="shell">
@@ -420,6 +420,7 @@
               <button type="button" role="tab" data-dtab="manual" aria-selected="true">Manual de uso</button>
               <button type="button" role="tab" data-dtab="distro" aria-selected="false">Manuales por distribución</button>
               <button type="button" role="tab" data-dtab="bib" aria-selected="false">Bibliografía</button>
+              <button type="button" role="tab" data-dtab="creditos" aria-selected="false">Créditos</button>
             </div>
           </div>
 
@@ -464,6 +465,47 @@
               <button type="button" class="btn-small" id="net-bibclose">Cerrar todo</button>
             </div>
             <div class="net-bibscroll" id="net-bibscroll"><div class="net-bib" id="net-bib"></div></div>
+          </div>
+
+          <div class="net-dpane" id="net-d-creditos" role="tabpanel" hidden>
+            <div class="cr">
+              <header class="cr-hero">
+                <div>
+                  <span class="cr-kicker">Seminario de investigación · Universidad del Quindío · 2026</span>
+                  <h4 class="cr-title">Plataforma Desktop Cloud</h4>
+                  <p class="cr-sub">Cada integrante desarrolló de forma individual una línea de la plataforma. El <b>Ejecutor SSH</b> es la línea de <b>Redes</b>.</p>
+                </div>
+                <div class="cr-dir">
+                  <span class="cr-av" aria-hidden="true">CG</span>
+                  <div><b class="cr-name">Carlos Eduardo Gómez Montoya</b><span class="cr-role">Director</span></div>
+                </div>
+              </header>
+
+              <div class="cr-team">
+                <article class="cr-card cr-star" style="--c: var(--accent)">
+                  <div class="cr-top">
+                    <span class="cr-av" aria-hidden="true">SP</span>
+                    <div><b class="cr-name">Salomé Pérez Franco</b><span class="cr-area">Redes</span></div>
+                  </div>
+                  <span class="cr-badge">Autora de esta aplicación</span>
+                  <p>Diseñó y desarrolló el Ejecutor SSH: configura la red de VMs Linux desde la web sin perder el acceso, con respaldo y vuelta atrás automática, y muestra las rutas y el diagnóstico de la red.</p>
+                </article>
+                <article class="cr-card" style="--c: var(--teal)">
+                  <div class="cr-top">
+                    <span class="cr-av" aria-hidden="true">NA</span>
+                    <div><b class="cr-name">Nelson Enrique Apache Molina</b><span class="cr-area">Seguridad</span></div>
+                  </div>
+                  <p>Trabajó la seguridad de la plataforma: criptografía e integridad (hash), autenticación con multifactor y gestión de identidad (IAM), certificados y firmas digitales, y control de acceso con firewall en el host y en la red.</p>
+                </article>
+                <article class="cr-card" style="--c: var(--warn)">
+                  <div class="cr-top">
+                    <span class="cr-av" aria-hidden="true">AR</span>
+                    <div><b class="cr-name">Andrés Felipe Rendón Nieto</b><span class="cr-area">Contenedores</span></div>
+                  </div>
+                  <p>Trabajó el despliegue de servicios en contenedores sobre las máquinas virtuales de la plataforma: cada servicio se empaqueta con sus dependencias en una imagen y corre aislado. Esas VMs son las que configura el Ejecutor SSH; por eso la app reconoce las interfaces que crean los contenedores (Docker) y no las modifica.</p>
+                </article>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -739,6 +781,11 @@
         <button id="cfg-save-btn" class="btn-primary" type="button">Guardar cambios</button>
       </div>
     </section>
+
+    <footer class="app-credits">
+      <span><b>Ejecutor SSH</b> · Seminario de investigación Plataforma Desktop Cloud · Universidad del Quindío · 2026</span>
+      <a href="#vms/creditos" id="open-credits">Créditos</a>
+    </footer>
   </main>
 
   <!-- Avisos flotantes y dialogo reutilizable (reemplazan alert/confirm/prompt) -->
@@ -754,8 +801,8 @@
     </form>
   </dialog>
 
-  <script src="/static/app.js?v=29"></script>
-  <script src="/static/network.js?v=29"></script>
+  <script src="/static/app.js?v=30"></script>
+  <script src="/static/network.js?v=30"></script>
   <script src="/static/netcmds.js?v=5"></script>
 </body>
 </html>

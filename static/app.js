@@ -1103,6 +1103,16 @@ $('#vm-create-form').addEventListener('submit', async e => {
   }
 });
 
+// ============== CRÉDITOS ==============
+// El pie de página abre Documentación → Créditos desde cualquier pestaña.
+function openCredits() {
+  showTab('vms');
+  window.showVmTab('docs');
+  window.showDoc('creditos');
+  $('#net-docs').scrollIntoView({ block: 'start', behavior: 'smooth' });
+}
+$('#open-credits').addEventListener('click', e => { e.preventDefault(); openCredits(); });
+
 // ============== INICIALIZACIÓN ==============
 window.listVMs = listVMs;
 window.ask = ask;
@@ -1119,6 +1129,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (start === 'vms' && sub === 'red' && vmName) window.openNetwork(vmName);
   else if (start === 'vms' && (sub === 'diagnostico' || sub === 'comandos') && vmName) window.openNetCmds(vmName, { reenvio: 'fwd', comandos: 'cmds', rutas: 'routes' }[part]);
   else if (start === 'vms' && sub === 'docs') window.showVmTab('docs');
+  else if (start === 'vms' && sub === 'creditos') openCredits();
   else if (start === 'vms' && sub === 'redes') window.showVmTab('nets');
   else if (start === 'vms' && sub === 'filtro' && vmName) setNetFilter(vmName); // #vms/filtro/interna:lan-a
   window.addEventListener('hashchange', () => showTab(location.hash.slice(1).split('/')[0]));
