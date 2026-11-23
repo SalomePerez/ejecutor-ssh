@@ -7,6 +7,18 @@ web.addr=:8081
 web.port=8081
 
 # ============================================
+# Hipervisor VirtualBox (lo que hay que llenar)
+# ============================================
+
+vm.provider=virtualbox
+vbox.manage=C:\Program Files\Oracle\VirtualBox\VBoxManage.exe
+# Usuario y contrasena que la app crea dentro de cada VM nueva
+vbox.guest.user=vboxuser
+vbox.guest.password=
+# Carpeta de las plantillas .vdi (si se deja comentada: %USERPROFILE%\VirtualBox VMs\plantillas)
+# vbox.templates=D:\plantillas
+
+# ============================================
 # Configuracion SSH por Defecto
 # ============================================
 
