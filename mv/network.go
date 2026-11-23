@@ -153,9 +153,9 @@ func readNetwork(p netBackend, name string) (*NetState, error) {
 	state.ReadAt = time.Now()
 	state.Libvirt = p.hostNetworks(name)
 	state.Hypervisor = p.hypervisorName()
-	state.Channel = "agente QEMU (qemu-guest-agent)"
+	state.Channel = "el canal interno (agente QEMU)"
 	if state.Hypervisor == "VirtualBox" {
-		state.Channel = "Guest Additions de VirtualBox"
+		state.Channel = "el canal interno (Guest Additions)"
 	}
 	return state, nil
 }

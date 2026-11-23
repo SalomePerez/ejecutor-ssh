@@ -30,6 +30,9 @@ type ApplyResult struct {
 	Message  string      `json:"message"`
 	Steps    []ApplyStep `json:"steps"`
 	State    *NetState   `json:"state,omitempty"`
+	// Install, en Comandos de red: la herramienta que falta y que la app
+	// puede instalar (arp, netstat, tcpdump…).
+	Install string `json:"install,omitempty"`
 }
 
 // PlanError se devuelve cuando la solicitud no pasa la validacion.

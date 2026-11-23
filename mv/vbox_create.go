@@ -190,7 +190,7 @@ func (p *VBoxProvider) Create(spec CreateSpec) (*VM, error) {
 			modify = append(modify, "--nat-localhostreachable1", "on")
 		}
 	}
-	// Canal 3: tarjeta de gestion en solo anfitrion, con una MAC conocida
+	// Canal de gestion: tarjeta de gestion en solo anfitrion, con una MAC conocida
 	// para que cloud-init la encuentre y la configure por DHCP.
 	mgmtMAC := ""
 	if spec.Management {
@@ -298,7 +298,7 @@ func (p *VBoxProvider) Create(spec CreateSpec) (*VM, error) {
 // llave SSH) puede usar sudo con su contrasena; e instala las Guest
 // Additions desde el ISO conectado. Sin compilador no se construyen los
 // modulos propios, pero el kernel ya trae vboxguest y el servicio funciona.
-// Si mgmtMAC no esta vacia, primero configura la interfaz de gestion (canal 3)
+// Si mgmtMAC no esta vacia, primero configura la interfaz de gestion (canal de gestion)
 // por DHCP, antes de instalar las Guest Additions, que tardan mas.
 func vboxUserData(name string, creds GuestCredentials, publicKey, mgmtMAC string) string {
 	key := ""
@@ -337,7 +337,7 @@ runcmd:
 
 const gaScriptPath = "/usr/local/sbin/ejecutor-guest-additions.sh"
 
-// gaScript instala las Guest Additions (canal 2) desde el ISO conectado.
+// gaScript instala las Guest Additions (canal interno) desde el ISO conectado.
 // Lo que se aprendio con cada familia:
 //   - Fedora Cloud no trae "which": sin el, el instalador no crea las
 //     unidades de systemd (vboxadd-service).
@@ -346,7 +346,7 @@ const gaScriptPath = "/usr/local/sbin/ejecutor-guest-additions.sh"
 //   - Con SELinux (Fedora), VBoxService debe poder pasar los procesos que
 //     abre al contexto del usuario: un modulo minimo con dos reglas.
 const gaScript = `#!/bin/sh
-# Escrito por Ejecutor SSH: instala las Guest Additions (canal 2) desde el ISO conectado.
+# Escrito por Ejecutor SSH: instala las Guest Additions (canal interno) desde el ISO conectado.
 command -v which >/dev/null 2>&1 || dnf -y -q install which 2>/dev/null || pacman -S --noconfirm --needed which 2>/dev/null || true
 mkdir -p /mnt/ga
 mount -o ro /dev/sr0 /mnt/ga 2>/dev/null || mount -o ro /dev/cdrom /mnt/ga
@@ -371,7 +371,7 @@ const mgmtScriptPath = "/usr/local/sbin/ejecutor-gestion.sh"
 // (Arch) o ifupdown.
 func mgmtScript(mac string) string {
 	return `#!/bin/sh
-# Escrito por Ejecutor SSH: interfaz de gestion (canal 3) por DHCP, sin ruta por defecto.
+# Escrito por Ejecutor SSH: interfaz de gestion (canal de gestion) por DHCP, sin ruta por defecto.
 MAC=` + strings.ToLower(mac) + `
 IF=""
 for d in /sys/class/net/*; do [ "$(cat "$d/address" 2>/dev/null)" = "$MAC" ] && IF=$(basename "$d"); done

@@ -42,8 +42,8 @@
     { k: 'mannaming', s: 'systemd.net-naming-scheme(7)', t: '<i>systemd.net-naming-scheme(7)</i>: nombres como enp1s0.', u: MAN + 'systemd.net-naming-scheme.7', man: 'man 7 systemd.net-naming-scheme' },
     { g: 'Otras referencias técnicas', k: 'netplan', s: 'Netplan YAML', t: 'Canonical. <i>Netplan — YAML configuration reference</i>.', u: 'https://netplan.readthedocs.io/en/stable/netplan-yaml/' },
     { k: 'cloudinit', s: 'cloud-init: network config', t: 'Canonical. <i>cloud-init — Network configuration</i>: cómo desactivarla con <code>network: {config: disabled}</code>.', u: 'https://cloudinit.readthedocs.io/en/latest/reference/network-config.html' },
-    { k: 'qemuga', s: 'QEMU Guest Agent', t: 'QEMU. <i>QEMU Guest Agent Protocol Reference</i>: guest-exec y guest-exec-status.', u: 'https://qemu-project.gitlab.io/qemu/interop/qemu-ga-ref.html' },
-    { k: 'libvirtnet', s: 'libvirt: Network XML', t: 'libvirt. <i>Network XML format</i>: rango DHCP y reservas (&lt;host&gt;).', u: 'https://libvirt.org/formatnetwork.html' },
+    { k: 'vboxga', s: 'VirtualBox: Guest Additions', t: 'Oracle. <i>VirtualBox User Manual</i>: Guest Additions y <code>VBoxManage guestcontrol</code>.', u: 'https://www.virtualbox.org/manual/' },
+    { k: 'vboxnet', s: 'VirtualBox: Virtual Networking', t: 'Oracle. <i>VirtualBox User Manual</i>, «Virtual Networking»: NAT, puente, solo anfitrión, red interna y su DHCP.', u: 'https://www.virtualbox.org/manual/' },
     { k: 'kernsysctl', s: 'ip-sysctl', t: 'Linux Kernel. <i>IP Sysctl</i>: net.ipv4.ip_forward.', u: 'https://docs.kernel.org/networking/ip-sysctl.html' },
     { k: 'lartc', s: 'LARTC cap. 4', t: 'B. Hubert et al. <i>Linux Advanced Routing &amp; Traffic Control HOWTO</i>, §4.2.', u: 'https://lartc.org/howto/lartc.rpdb.multiple-links.html' }
   ];
@@ -108,22 +108,23 @@
     let h = P('Interfaz de red.', 'Es el nombre que el kernel le da a cada tarjeta. Los nombres predecibles salen de la ubicación física: <code>en</code> es Ethernet, <code>p1s0</code> el bus PCI 1, ranura 0. Así el nombre no cambia entre reinicios, como sí podía pasar con <code>eth0</code> ' + R('mannaming') + ' ' + R('dah', 'Manual de Debian §8.2.1') + '. La MAC identifica la tarjeta en la red local, y ARP la asocia con la IP ' + R('rfc826') + '.');
     if (virt) h += P('Interfaces virtuales.', 'Las marcadas como <i>virtual</i> no son tarjetas: las crea un programa (Docker, libvirt, una VPN). La app lo sabe porque en <code>/sys/class/net</code> apuntan a <code>/devices/virtual/</code>. Se gestionan desde el programa que las creó.');
     if (multi) h += P('Varias tarjetas.', 'Un equipo con dos o más interfaces es <i>multihomed</i>: cada una tiene su IP en su red y se configura por separado ' + R('rfc1122', 'RFC 1122 §3.3.4') + '. Si además pasa paquetes entre redes, se comporta como router ' + R('rfc1812') + '; eso lo decide <code>net.ipv4.ip_forward</code> ' + R('kernsysctl') + '.');
-    h += P('Cómo llega la app a la VM.', (S.channel ? 'Entra por SSH a la interfaz de gestión, una tarjeta reservada que nunca se modifica: cambiar las demás no corta la sesión.' : 'No entra por SSH a la red que cambia: le pide a VirtualBox que ejecute los comandos con las Guest Additions, por un dispositivo interno ' + R('qemuga') + '. Ese canal no usa la red de la VM, así que cambiar la IP no lo corta.'));
+    h += P('Cómo llega la app a la VM.', (S.channel ? 'Entra por SSH a la interfaz de gestión, una tarjeta reservada que nunca se modifica: cambiar las demás no corta la sesión.' : 'No entra por SSH a la red que cambia: le pide a VirtualBox que ejecute los comandos con las Guest Additions, por un dispositivo interno ' + R('vboxga') + '. Ese canal no usa la red de la VM, así que cambiar la IP no lo corta.'));
     h += P('En ' + distro().name + '.', 'Manual oficial: ' + distroRefs() + '.');
     setL('net-L-iface', 'qué es una interfaz' + (multi ? ' · varias tarjetas' : '') + (virt ? ' · interfaces virtuales' : '') + ' · cómo llega la app', h);
   }
   function learnMode() {
     let h = '';
-    if (S.mode === 'dhcp') h += P('DHCP.', 'Definido en el ' + R('rfc2131') + '. La VM pide su configuración y un servidor le presta una IP por un tiempo; las opciones del ' + R('rfc2132') + ' traen la máscara (1), la puerta de enlace (3) y el DNS (6). En las redes NAT de libvirt, ese servidor es el propio hipervisor ' + R('libvirtnet') + '.');
-    else if (S.mode === 'static') h += P('IP fija.', 'La configuración mínima de un host según el ' + R('rfc1122') + ': dirección, máscara y, si va a salir de su red, una puerta de enlace; el DNS se agrega para resolver nombres. En la red de libvirt, una IP fija dentro del rango DHCP se <b>reserva</b> para la MAC de la tarjeta, para que el DHCP no se la entregue a otra VM ' + R('libvirtnet') + '.');
+    if (S.mode === 'dhcp') h += P('DHCP.', 'Definido en el ' + R('rfc2131') + '. La VM pide su configuración y un servidor le presta una IP por un tiempo; las opciones del ' + R('rfc2132') + ' traen la máscara (1), la puerta de enlace (3) y el DNS (6). En la red NAT de VirtualBox, ese servidor es el propio VirtualBox ' + R('vboxnet') + '.');
+    else if (S.mode === 'static') h += P('IP fija.', 'La configuración mínima de un host según el ' + R('rfc1122') + ': dirección, máscara y, si va a salir de su red, una puerta de enlace; el DNS se agrega para resolver nombres. Conviene elegirla <b>fuera del rango</b> que reparte el DHCP de la red, para que el servidor no se la entregue a otra VM ' + R('vboxnet') + '.');
+    else if (S.mode === 'remove') h += P('Quitar una IP adicional.', 'Es lo contrario de agregarla: sale del archivo del gestor de red, para que no vuelva al reiniciar, y de la tarjeta con <code>ip addr del</code> ' + R('manipaddr') + ', porque no todos los gestores la borran en vivo (ifupdown nunca lo hace). La IP principal, la puerta de enlace y el DNS no se tocan, y la IP quitada queda libre para otro equipo.');
     else h += P('IP adicional.', 'Una interfaz puede tener varias direcciones ' + R('rfc1122', 'RFC 1122 §3.3.4') + '. Se agrega con <code>ip addr add</code> ' + R('manipaddr') + ' y queda en el archivo para que sobreviva al reinicio. Así una sola tarjeta física tiene «varias interfaces».');
     h += P('Cómo se hace en ' + distro().name + ':', distroRefs() + '.');
-    setL('net-L-mode', { dhcp: 'qué es DHCP', static: 'qué es una IP fija y la reserva en libvirt', extra: 'qué es una IP adicional' }[S.mode], h);
+    setL('net-L-mode', { dhcp: 'qué es DHCP', static: 'qué es una IP fija', extra: 'qué es una IP adicional', remove: 'cómo se quita una IP adicional' }[S.mode], h);
   }
   const LF = {
-    ip: () => P('Dirección IP (IPv4).', '32 bits en cuatro números de 0 a 255 ' + R('rfc791') + '. 10/8, 172.16/12 y 192.168/16 son privadas ' + R('rfc1918') + '. La primera dirección de cada red la identifica y la última es el broadcast ' + R('rfc919') + ': no se asignan. Antes de aplicar, la app revisa los leases de libvirt y pregunta por ARP con arping si alguien ya la tiene ' + R('rfc5227') + ' ' + R('manarping') + '.'),
+    ip: () => P('Dirección IP (IPv4).', '32 bits en cuatro números de 0 a 255 ' + R('rfc791') + '. 10/8, 172.16/12 y 192.168/16 son privadas ' + R('rfc1918') + '. La primera dirección de cada red la identifica y la última es el broadcast ' + R('rfc919') + ': no se asignan. Antes de aplicar, la app revisa las IP de las otras VMs del hipervisor y pregunta por ARP con arping si alguien ya la tiene ' + R('rfc5227') + ' ' + R('manarping') + '.'),
     mask: () => P('Máscara.', 'Cuántos bits son la red. El ' + R('rfc950') + ' introdujo 255.255.255.0; el ' + R('rfc4632') + ' la escribe como /24. Es lo mismo: Linux muestra /24 y Windows 255.255.255.0.'),
-    gw: () => P('Puerta de enlace.', 'El router al que se envía lo que no está en la red local; debe estar en la misma subred ' + R('rfc1122', 'RFC 1122 §3.3.1') + '. En la red NAT de libvirt es el hipervisor (por ejemplo 192.168.122.1).') +
+    gw: () => P('Puerta de enlace.', 'El router al que se envía lo que no está en la red local; debe estar en la misma subred ' + R('rfc1122', 'RFC 1122 §3.3.1') + '. En la red NAT de VirtualBox es 10.0.2.2, el propio VirtualBox.') +
       P('¿Puede haber más de una?', 'Sí: entre varias rutas por defecto el kernel usa la de menor métrica y las demás quedan de respaldo ' + R('maniproute') + '. También se puede usar una puerta de enlace solo hacia ciertas redes, o enrutamiento por políticas con <code>ip rule</code> ' + R('maniprule') + ' ' + R('lartc') + '. Las redes internas de un router van sin puerta de enlace ' + R('rfc1812') + '.'),
     dns: () => P('DNS.', 'Traduce nombres a IPs ' + R('rfc1034') + ' ' + R('rfc1035') + '. Con ifupdown hay un solo resolver para toda la VM (' + R('manresolv') + '); con systemd-resolved cada interfaz tiene el suyo (' + R('manresolvectl') + ').')
   };
@@ -137,14 +138,13 @@
     const txt = {
       file: P('El archivo.', {
         netplan: 'La app no edita <code>50-cloud-init.yaml</code>: escribe su propio archivo <code>90-ejecutor-…yaml</code>. Netplan une los archivos en orden alfabético y el de número mayor manda ' + R('netplan') + '. Además apaga la red de cloud-init para que no la vuelva a escribir al reiniciar ' + R('cloudinit') + '.',
-        networkd: 'Archivo <code>.network</code> de systemd-networkd ' + R('mannetworkd') + '. El prefijo <code>10-</code> hace que se lea antes que los demás.',
+        networkd: 'Archivo <code>.network</code> de systemd-networkd ' + R('mannetworkd') + '. El prefijo <code>05-</code> hace que se lea antes que los de cloud-init (<code>10-…</code>): networkd usa el primer archivo que coincide.',
         ifupdown: 'Formato de <code>/etc/network/interfaces</code> ' + R('maninterfaces') + ' ' + R('dah', 'Manual de Debian §8.2') + '.',
         nm: 'NetworkManager guarda cada conexión en <code>/etc/NetworkManager/system-connections/</code>. La app no edita el archivo: lo cambia con ' + R('mannmcli') + ' ' + R('nmsettings') + '.'
       }[m] || '') + P('Manual de ' + distro().name + ':', distroRefs() + '.'),
       cmd: P('Por qué cada fase.', '<code>arping -D</code> comprueba que la IP esté libre ' + R('rfc5227') + '. ' + R('mansystemdrun') + ' programa la vuelta atrás dentro de la VM. La verificación lee el estado real con ' + R('manipaddr') + ' y ' + R('maniproute') + '. Las líneas marcadas <i>hipervisor</i> se ejecutan en el host, no en la VM.'),
-      route: P('Cómo elige el kernel.', 'Gana la ruta más específica (prefijo más largo); si empatan, la de menor métrica ' + R('rfc1812', 'RFC 1812 §5.2.4.3') + ' ' + R('rfc4632') + '. Las líneas <code>proto kernel scope link</code> las crea el kernel por tener una IP en esa red.')
     }[S.tab];
-    setL('net-L-prev', { file: 'cómo se lee este archivo', cmd: 'por qué cada fase', route: 'cómo elige el kernel la ruta' }[S.tab], txt);
+    setL('net-L-prev', { file: 'cómo se lee este archivo', cmd: 'por qué cada fase' }[S.tab], txt);
   }
 
   // ---------- render ----------
@@ -157,25 +157,14 @@
   }
   function renderHead() {
     const st = S.state;
-    $('#net-title').textContent = 'Red de ' + S.vm;
-    const channel = st.channel || (st.hypervisor === 'VirtualBox' ? 'Guest Additions de VirtualBox' : 'agente QEMU');
+    $('#net-title').textContent = 'Configuración de red de ' + S.vm;
+    const channel = st.channel || (st.hypervisor === 'VirtualBox' ? 'el canal interno (Guest Additions)' : 'el canal interno (agente QEMU)');
     $('#net-detect').innerHTML = 'Detectado por ' + channel + ': ' +
       `<span class="net-chip">${esc(st.os || 'sistema desconocido')}</span><span class="net-chip">${esc(st.managerName || 'gestor no reconocido')}</span>` +
       (st.forwarding ? '<span class="net-chip warm">reenvío IPv4 activo (router)</span>' : '<span class="net-chip dim">sin reenvío IPv4</span>') +
       (st.cloudInit ? '<span class="net-chip dim">cloud-init</span>' : '') +
-      ` <button type="button" class="btn-small" id="net-fwd" title="net.ipv4.ip_forward: la VM pasa paquetes entre sus interfaces">${st.forwarding ? 'Desactivar reenvío' : 'Activar reenvío (router)'}</button>`;
-    $('#net-fwd').onclick = toggleForwarding;
-    // Probar conectividad: ping, ip route get y tracepath desde la VM.
-    let conn = $('#net-conn');
-    if (!conn) {
-      conn = document.createElement('form');
-      conn.id = 'net-conn';
-      conn.className = 'net-conn';
-      conn.innerHTML = '<label>Probar conectividad desde la VM: <input id="net-conn-target" placeholder="192.168.20.10" autocomplete="off" spellcheck="false" aria-label="IP o nombre de destino"></label> ' +
-        '<button type="submit" class="btn-small">Probar (ping)</button><pre id="net-conn-out" class="net-conn-out" hidden></pre>';
-      $('#net-detect').after(conn);
-      conn.addEventListener('submit', testConnectivity);
-    }
+      ` <button type="button" class="btn-small" id="net-goroute" title="Tabla de rutas real y reenvío IPv4 de esta VM">Ver rutas y reenvío →</button>`;
+    $('#net-goroute').onclick = () => window.openNetCmds && window.openNetCmds(S.vm);
     $('#net-distline').innerHTML = 'Manual de ' + esc(distro().name) + ': ' + distroRefs();
     $('#net-raw').innerHTML = st.raw.map(c => `<span class="k2">$ ${esc(c.cmd)}</span>\n<span class="o">${esc(c.output)}</span>`).join('\n');
   }
@@ -211,9 +200,10 @@
     $('#net-a-dns').textContent = i.dns || '—';
   }
   const HELP = {
-    dhcp: 'El servidor DHCP de la red entrega los datos. En la red NAT de libvirt, ese servidor es el hipervisor.',
+    dhcp: 'El servidor DHCP de la red entrega los datos. En la red NAT de VirtualBox, ese servidor es el propio VirtualBox.',
     static: 'Los datos se escriben a mano y no cambian. Es lo que necesita un servidor al que se entra por SSH.',
-    extra: 'La interfaz conserva su IP y suma otra. Puerta de enlace y DNS no cambian.'
+    extra: 'La interfaz conserva su IP y suma otra. Puerta de enlace y DNS no cambian.',
+    remove: 'Se quita una de las IPs adicionales. La IP principal, la puerta de enlace y el DNS no cambian.'
   };
   function suggestGw() {
     const ln = S.state.libvirt && S.state.libvirt[iface().mac.toLowerCase()];
@@ -222,11 +212,23 @@
     return n !== null && p ? n2ip(netOf(n, p) + 1) : '';
   }
   function renderMode() {
-    document.querySelectorAll('#net-modes button').forEach(b => { b.setAttribute('aria-pressed', b.dataset.mode === S.mode); b.disabled = S.busy; });
+    const i = iface();
+    document.querySelectorAll('#net-modes button').forEach(b => {
+      b.setAttribute('aria-pressed', b.dataset.mode === S.mode);
+      const noExtras = b.dataset.mode === 'remove' && !i.extras.length;
+      b.disabled = S.busy || noExtras;
+      if (b.dataset.mode === 'remove') b.title = noExtras ? i.name + ' no tiene IPs adicionales' : 'Quitar una de las IPs adicionales de ' + i.name;
+    });
     $('#net-modehelp').textContent = HELP[S.mode];
-    const st = S.mode === 'static', dh = S.mode === 'dhcp', i = iface();
-    const dis = { ip: dh, mask: dh, gw: !st || S.f.role === 'none', dns: !st || (S.state.manager === 'ifupdown' && S.f.role !== 'main'), nets: !st };
-    const ph = { ip: 'lo entrega el servidor DHCP', mask: 'lo entrega el servidor DHCP', gw: dh ? 'lo entrega el servidor DHCP' : st ? 'no aplica: sin puerta de enlace' : 'se conserva', dns: dh ? 'lo entrega el servidor DHCP' : st ? 'uno solo para la VM: lo pone la interfaz principal' : 'se conserva', nets: 'se conserva' };
+    const st = S.mode === 'static', dh = S.mode === 'dhcp', rm = S.mode === 'remove';
+    $('#net-r-rm').hidden = !rm;
+    if (rm) {
+      $('#net-f-rm').innerHTML = i.extras.map(x => `<option value="${esc(x)}"${x === S.f.rm ? ' selected' : ''}>${esc(x)}</option>`).join('');
+      $('#net-f-rm').disabled = S.busy;
+      $('#net-a-rm').textContent = i.extras.length + (i.extras.length === 1 ? ' adicional' : ' adicionales');
+    }
+    const dis = { ip: dh || rm, mask: dh || rm, gw: !st || S.f.role === 'none', dns: !st || (S.state.manager === 'ifupdown' && S.f.role !== 'main'), nets: !st };
+    const ph = { ip: rm ? 'se conserva' : 'lo entrega el servidor DHCP', mask: rm ? 'se conserva' : 'lo entrega el servidor DHCP', gw: dh ? 'lo entrega el servidor DHCP' : st ? 'no aplica: sin puerta de enlace' : 'se conserva', dns: dh ? 'lo entrega el servidor DHCP' : st ? 'uno solo para la VM: lo pone la interfaz principal' : 'se conserva', nets: 'se conserva' };
     Object.keys(dis).forEach(k => {
       const el = $('#net-f-' + k);
       el.disabled = dis[k] || S.busy;
@@ -241,12 +243,14 @@
   }
   function hints() {
     const p = parseMask(S.f.mask), n = ip2n(S.f.ip);
-    $('#net-h-mask').textContent = S.mode !== 'dhcp' && p !== null && p >= 8 && p <= 30 ? '= /' + p + ' = ' + n2ip(maskN(p)) : '';
-    $('#net-h-ip').textContent = S.mode !== 'dhcp' && n !== null && p !== null && p >= 8 && p <= 30 ? 'red ' + n2ip(netOf(n, p)) + '/' + p : '';
+    $('#net-h-mask').textContent = S.mode !== 'dhcp' && S.mode !== 'remove' && p !== null && p >= 8 && p <= 30 ? '= /' + p + ' = ' + n2ip(maskN(p)) : '';
+    $('#net-h-ip').textContent = S.mode !== 'dhcp' && S.mode !== 'remove' && n !== null && p !== null && p >= 8 && p <= 30 ? 'red ' + n2ip(netOf(n, p)) + '/' + p : '';
   }
   function prefill() {
     const i = iface();
+    if (S.mode === 'remove' && !i.extras.length) S.mode = 'static';
     S.f = { gw: i.gateway || '', dns: i.dns || '', role: i.role === 'none' && S.mode === 'static' && !S.state.interfaces.some(o => o.name !== i.name && !o.virtual && o.role === 'main') ? 'main' : i.role, nets: i.nets.join(', ') };
+    if (S.mode === 'remove') S.f.rm = i.extras[0];
     if (S.mode === 'extra') { S.f.ip = ''; S.f.mask = '/' + i.prefix; }
     else { S.f.ip = i.ip; S.f.mask = n2ip(maskN(i.prefix)); }
     if (S.mode === 'static' && !S.f.gw && isDef(S.f.role)) S.f.gw = suggestGw();
@@ -259,7 +263,7 @@
 
   // ---------- plan (validacion del servidor) ----------
   function request() {
-    return { interface: S.iface, mode: S.mode, ip: S.f.ip || '', mask: S.f.mask || '', gateway: S.f.gw || '', role: S.f.role || 'main', nets: S.f.nets || '', dns: S.f.dns || '' };
+    return { interface: S.iface, mode: S.mode, ip: (S.mode === 'remove' ? S.f.rm : S.f.ip) || '', mask: S.f.mask || '', gateway: S.f.gw || '', role: S.f.role || 'main', nets: S.f.nets || '', dns: S.f.dns || '' };
   }
   function requestPlan(delay) {
     clearTimeout(S.timer);
@@ -276,6 +280,7 @@
         S.plan = { checks: [{ level: 'bad', text: 'No se pudo validar: ' + err.message }], valid: false };
       }
       renderChecks(); renderPreview();
+      document.dispatchEvent(new CustomEvent('netplan')); // Rutas resultantes (Enrutamiento y diagnóstico)
     }, delay);
   }
   function renderChecks() {
@@ -285,69 +290,24 @@
     btn.textContent = 'Aplicar con reversión (' + (S.plan.revertSeconds || S.revert) + ' s)';
   }
   function renderPreview() {
-    ['file', 'cmd', 'route'].forEach(t => $('#net-t-' + t).setAttribute('aria-selected', S.tab === t));
+    ['file', 'cmd'].forEach(t => $('#net-t-' + t).setAttribute('aria-selected', S.tab === t));
     learnPrev();
     const box = $('#net-preview');
     const pl = S.plan;
     if (!pl || !pl.valid) {
-      box.innerHTML = '<div class="net-placeholder">Cuando los datos pasen la validación, aquí aparece ' + { file: 'el archivo que se escribirá.', cmd: 'la lista exacta de comandos.', route: 'cómo quedará la tabla de rutas.' }[S.tab] + '</div>';
+      box.innerHTML = '<div class="net-placeholder">Cuando los datos pasen la validación, aquí aparece ' + { file: 'el archivo que se escribirá.', cmd: 'la lista exacta de comandos.' }[S.tab] + '</div>';
       return;
     }
     if (S.tab === 'file') {
       box.innerHTML = pl.files.map(f => `<div class="net-file"><div class="fp">${esc(f.path)}${f.note ? '  (' + esc(f.note) + ')' : ''}</div><pre>` +
         f.lines.map(l => l.changed ? `<span class="chg">${esc(l.text)}</span>` : /^\s*#/.test(l.text) ? `<span class="cm">${esc(l.text)}</span>` : esc(l.text)).join('\n') + '</pre></div>').join('');
-    } else if (S.tab === 'cmd') {
+    } else {
       box.innerHTML = '<pre class="net-term">' + pl.phases.map((ph, n) => `<span class="ph"># ${n + 1}. ${esc(ph.name)}</span>` +
         ph.cmds.map(c => (c.cmd ? (c.host ? '<span class="app">[hipervisor]</span> $ ' : '$ ') + esc(c.cmd) : '') + (c.note ? `${c.cmd ? '   ' : ''}<span class="nt"># ${esc(c.note)}</span>` : '')).join('\n')).join('\n') + '</pre>';
-    } else {
-      box.innerHTML = `<div class="net-file"><div class="fp">${esc(pl.routeSummary)}</div><pre><span class="cm"># ip r — así quedará la tabla de rutas</span>\n` +
-        pl.routes.map(r => r.state === 'new' ? `<span class="chg">${esc(r.text)}</span>` : r.state === 'gone' ? `<span class="del">${esc(r.text)}</span>` : esc(r.text)).join('\n') + '</pre></div>';
     }
   }
 
   // ---------- aplicar ----------
-  // Reenvio IPv4: lo que convierte a la VM en router entre sus redes.
-  async function toggleForwarding() {
-    const btn = $('#net-fwd');
-    const enabled = !S.state.forwarding;
-    btn.disabled = true;
-    btn.textContent = enabled ? 'Activando…' : 'Desactivando…';
-    let data;
-    try {
-      const r = await fetch('/api/vms/' + encodeURIComponent(S.vm) + '/network/forwarding' + qs(), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }) });
-      data = await r.json();
-    } catch (err) {
-      data = { success: false, error: err.message };
-    }
-    const lines = ((data.data && data.data.steps) || []).flatMap(s => s.lines).map(l => '$ ' + l.cmd + (l.output ? '\n' + l.output : '')).join('\n');
-    if (window.toast) window.toast(data.success ? 'success' : 'error', (data.message || data.error || 'error') + (lines ? '\n\n' + lines : ''), data.success ? 8000 : 0);
-    if (data.data && data.data.state) { S.state = data.data.state; renderAll(); }
-    else { btn.disabled = false; renderHead(); }
-  }
-
-  async function testConnectivity(e) {
-    e.preventDefault();
-    const target = $('#net-conn-target').value.trim();
-    const out = $('#net-conn-out');
-    if (!target) return;
-    const btn = e.submitter || $('#net-conn button');
-    btn.disabled = true;
-    out.hidden = false;
-    out.className = 'net-conn-out';
-    out.textContent = 'Probando ' + target + ' desde ' + S.vm + '…';
-    let data;
-    try {
-      const r = await fetch('/api/vms/' + encodeURIComponent(S.vm) + '/network/test' + qs(), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target }) });
-      data = await r.json();
-    } catch (err) {
-      data = { success: false, error: err.message };
-    }
-    btn.disabled = false;
-    const lines = ((data.data && data.data.steps) || []).flatMap(s => s.lines).map(l => '$ ' + l.cmd + (l.output ? '\n' + l.output : '')).join('\n\n');
-    out.className = 'net-conn-out ' + (data.success ? 'ok' : 'bad');
-    out.textContent = (data.message || data.error || 'error') + (lines ? '\n\n' + lines : '');
-  }
-
   async function apply() {
     if (!S.plan || !S.plan.valid || S.busy) return;
     S.busy = true;
@@ -374,7 +334,7 @@
         $('#net-result').innerHTML = `<div class="net-result ${res.ok ? 'ok' : 'bad'}">${res.ok ? '<b>Listo.</b> ' : ''}${esc(res.message)}</div>`;
         if (res.state) {
           S.state = res.state;
-          if (res.ok) { if (S.mode === 'extra') S.mode = 'static'; prefill(); }
+          if (res.ok) { if (S.mode === 'extra') S.mode = 'static'; prefill(); } // prefill deja «remove» solo si quedan adicionales
         }
       }
     } catch (err) {
@@ -389,13 +349,14 @@
   // ---------- sub-pestanas del modulo de VMs ----------
   function showVmTab(name) {
     document.querySelectorAll('.vm-subtabs [data-vmtab]').forEach(b => b.setAttribute('aria-selected', b.dataset.vmtab === name));
-    ['manage', 'nets', 'net', 'docs'].forEach(k => { $('#vm-pane-' + k).hidden = k !== name; });
+    ['manage', 'nets', 'net', 'cmds', 'docs'].forEach(k => { $('#vm-pane-' + k).hidden = k !== name; });
     if (name === 'net') renderVmList();
+    if (name === 'cmds' && typeof window.netCmdsShow === 'function') window.netCmdsShow();
     if (name === 'nets' && typeof window.loadVirtualNetworks === 'function') window.loadVirtualNetworks();
     if (name === 'docs') { renderDistros(); carousel(); }
   }
 
-  // Lista de VMs a la izquierda del panel de Red, como en el prototipo.
+  // Lista de VMs a la izquierda del panel de Configuracion de red.
   async function renderVmList() {
     const box = $('#net-vmlist');
     try {
@@ -436,11 +397,11 @@
       S.vm = name; S.state = null; S.plan = null; S.mode = 'static'; S.tab = 'file';
       history.replaceState(null, '', '#vms/red/' + encodeURIComponent(name));
       document.querySelectorAll('#net-vmlist .net-vm').forEach(b => b.setAttribute('aria-pressed', b.dataset.vm === name));
-      $('#net-title').textContent = 'Red de ' + name;
+      $('#net-title').textContent = 'Configuración de red de ' + name;
       $('#net-body').hidden = true;
       $('#net-run').hidden = true;
       $('#net-loading').hidden = false;
-      $('#net-loading').innerHTML = '<div class="net-wait"><span class="spinner"></span> Leyendo la red de la VM ' + (S.channel ? 'por SSH a su interfaz de gestión' : 'por el canal del hipervisor') + '…</div>';
+      $('#net-loading').innerHTML = '<div class="net-wait"><span class="spinner"></span> Leyendo la red de la VM ' + (S.channel ? 'por el canal de gestión (SSH)' : 'por el canal interno') + '…</div>';
       $('#net-panel').scrollIntoView({ block: 'start', behavior: 'smooth' });
     }
     if (S.vm !== name) return;
@@ -484,7 +445,7 @@
       `<div class="net-help">${giveUp ? 'Se dejó de reintentar.' : 'Se reintenta solo cada 15 s.'} Tiempo esperando: <span id="net-elapsed">${elapsed()}</span></div></div></div>` +
       `<div class="net-causes">
         <div><b>¿Acaba de encender o crear la VM?</b> Es normal: en el primer arranque cloud-init instala las Guest Additions y tarda de 3 a 7 minutos, más si el equipo anda corto de memoria.</div>
-        <div><b>¿Tiene interfaz de gestión?</b> Ese canal (3) suele estar listo antes: elíjalo arriba, en <b>Canal</b>.</div>
+        <div><b>¿Tiene interfaz de gestión?</b> El canal de gestión (SSH) suele estar listo antes: elíjalo arriba, en <b>Canal</b>.</div>
       </div>
       <div class="net-actions">
         <button type="button" class="btn-secondary" data-net-retry>Reintentar ahora</button>
@@ -555,7 +516,9 @@
   }
   function showDoc(t) {
     document.querySelectorAll('.net-dtabs [data-dtab]').forEach(b => b.setAttribute('aria-selected', b.dataset.dtab === t));
-    ['manual', 'distro', 'bib'].forEach(k => { $('#net-d-' + k).hidden = k !== t; });
+    ['manual', 'distro', 'bib', 'creditos'].forEach(k => { $('#net-d-' + k).hidden = k !== t; });
+    // «Por qué está diseñado así» acompaña al manual, no a los créditos.
+    document.querySelector('#vm-pane-docs .net-why').hidden = t === 'creditos';
     if (t === 'manual') carousel();
     if (t === 'distro') renderDistros();
   }
@@ -600,6 +563,7 @@
       S.mode = b.dataset.mode; prefill(); renderAll();
     });
     ['ip', 'mask', 'gw', 'dns', 'nets'].forEach(k => $('#net-f-' + k).addEventListener('input', e => { S.f[k] = e.target.value; hints(); requestPlan(250); }));
+    $('#net-f-rm').addEventListener('change', e => { S.f.rm = e.target.value; requestPlan(0); });
     $('#net-f-role').addEventListener('change', e => {
       S.f.role = e.target.value;
       if (S.f.role !== 'none' && !S.f.gw) S.f.gw = suggestGw();
@@ -613,9 +577,10 @@
       const b = e.target.closest('[data-lf]'); if (!b) return;
       S.lf = b.dataset.lf; learnField();
     });
-    ['file', 'cmd', 'route'].forEach(t => $('#net-t-' + t).addEventListener('click', () => { S.tab = t; renderPreview(); }));
+    ['file', 'cmd'].forEach(t => $('#net-t-' + t).addEventListener('click', () => { S.tab = t; renderPreview(); }));
     $('#net-reset').addEventListener('click', () => { if (!S.busy) { prefill(); renderAll(); } });
     $('#net-apply').addEventListener('click', apply);
+    $('#net-t-routes').addEventListener('click', () => { if (S.vm && window.openNetCmds) window.openNetCmds(S.vm, 'routes', true); });
     $('#net-loading').addEventListener('click', e => {
       if (e.target.closest('[data-net-retry]')) { WAIT.tries = 0; open(S.vm, { retry: true }); }
       const rb = e.target.closest('[data-net-repair]'); if (rb) repair(rb);
@@ -640,6 +605,11 @@
   }
 
   window.openNetwork = open;
+  // El cambio en preparación de una VM, para mostrar sus rutas resultantes en
+  // «Enrutamiento y diagnóstico». null si no hay un plan válido para esa VM.
+  window.netPlanFor = vm => (S.vm === vm && S.plan && S.plan.valid && S.plan.routes)
+    ? { plan: S.plan, iface: S.iface, mode: S.mode } : null;
   window.showVmTab = showVmTab;
+  window.showDoc = showDoc;
   window.addEventListener('DOMContentLoaded', bind);
 })();

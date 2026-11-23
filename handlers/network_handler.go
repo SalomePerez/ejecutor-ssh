@@ -45,13 +45,13 @@ type networkReadResponse struct {
 	RevertSeconds int          `json:"revertSeconds"`
 }
 
-// networkRoute reconoce /api/vms/{nombre}/network[/plan|/apply|/forwarding|/test].
+// networkRoute reconoce /api/vms/{nombre}/network[/plan|/apply|/forwarding|/test|/cmd|/routing].
 func networkRoute(path string) (name, action string, ok bool) {
 	rest := strings.TrimPrefix(path, "/api/vms/")
 	if rest == path {
 		return "", "", false
 	}
-	for _, a := range []string{"/network/plan", "/network/apply", "/network/forwarding", "/network/test", "/network"} {
+	for _, a := range []string{"/network/plan", "/network/apply", "/network/forwarding", "/network/test", "/network/cmd", "/network/routing", "/network"} {
 		if strings.HasSuffix(rest, a) {
 			return strings.TrimSuffix(rest, a), strings.TrimPrefix(a, "/network"), true
 		}
@@ -64,8 +64,8 @@ func (h *VMHandler) serveNetwork(w http.ResponseWriter, r *http.Request, name, a
 		writeVMResponse(w, http.StatusBadRequest, vmResponse{Success: false, Error: err.Error()})
 		return
 	}
-	// canal=gestion usa SSH por la interfaz de gestion (canal 3); si no, el
-	// canal del hipervisor (Guest Additions o agente QEMU, canal 2).
+	// canal=gestion usa SSH por la interfaz de gestion (canal de gestion); si no, el
+	// canal interno (Guest Additions o agente QEMU).
 	channel := r.URL.Query().Get("canal")
 	np, err := h.networkOps(channel)
 	if err != nil {
@@ -125,6 +125,40 @@ func (h *VMHandler) serveNetwork(w http.ResponseWriter, r *http.Request, name, a
 			return
 		}
 		result, err := np.TestConnectivity(name, req.Target)
+		if err != nil {
+			writeVMResponse(w, http.StatusBadRequest, vmResponse{Success: false, Error: err.Error()})
+			return
+		}
+		writeVMResponse(w, http.StatusOK, vmResponse{Success: result.OK, Message: result.Message, Data: result})
+
+	case action == "/routing" && r.Method == http.MethodGet:
+		// Tabla de rutas real de la VM, interpretada, y estado del reenvio.
+		rp, ok := np.(vm.RoutingProvider)
+		if !ok {
+			writeVMResponse(w, http.StatusNotImplemented, vmResponse{Success: false, Error: "este canal no lee el enrutamiento"})
+			return
+		}
+		info, err := rp.ReadRouting(name)
+		if err != nil {
+			writeVMResponse(w, http.StatusBadGateway, vmResponse{Success: false, Error: err.Error()})
+			return
+		}
+		writeVMResponse(w, http.StatusOK, vmResponse{Success: true, Data: info})
+
+	case action == "/cmd" && r.Method == http.MethodPost:
+		// Comandos de red: solo consulta y diagnostico, del catalogo.
+		cp, ok := np.(vm.NetCommandProvider)
+		if !ok {
+			writeVMResponse(w, http.StatusNotImplemented, vmResponse{Success: false, Error: "este canal no ejecuta comandos de red"})
+			return
+		}
+		var req vm.NetCmdRequest
+		r.Body = http.MaxBytesReader(w, r.Body, 1024)
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeVMResponse(w, http.StatusBadRequest, vmResponse{Success: false, Error: "JSON inválido"})
+			return
+		}
+		result, err := cp.RunNetCommand(name, req)
 		if err != nil {
 			writeVMResponse(w, http.StatusBadRequest, vmResponse{Success: false, Error: err.Error()})
 			return

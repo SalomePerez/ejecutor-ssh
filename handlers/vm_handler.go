@@ -31,7 +31,7 @@ type createVMRequest struct {
 	Disks     []diskRequest `json:"disks,omitempty"`
 	Networks  []string      `json:"networks,omitempty"`
 	Emulated  bool          `json:"emulated,omitempty"`
-	// Management agrega la interfaz de gestion (canal 3).
+	// Management agrega la interfaz de gestion (canal de gestion).
 	Management bool `json:"management,omitempty"`
 }
 
@@ -72,6 +72,8 @@ func (h *VMHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.listTemplates(w, r)
 	case r.Method == http.MethodGet && path == "/api/hypervisor":
 		h.hostInfo(w, r)
+	case r.Method == http.MethodGet && path == "/api/netcmds":
+		writeVMResponse(w, http.StatusOK, vmResponse{Success: true, Data: map[string]interface{}{"commands": vm.NetCommands(), "filters": vm.TcpdumpFilters()}})
 	case strings.HasPrefix(path, "/api/networks"):
 		h.serveNetworks(w, r, strings.Trim(strings.TrimPrefix(path, "/api/networks"), "/"))
 	case strings.HasPrefix(path, "/api/vms/") && strings.Contains(path, "/interfaces"):
@@ -89,6 +91,9 @@ func (h *VMHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case r.Method == http.MethodPost && strings.HasPrefix(path, "/api/vms/") && strings.HasSuffix(path, "/start"):
 		name := strings.TrimSuffix(strings.TrimPrefix(path, "/api/vms/"), "/start")
 		h.startVM(w, r, name)
+	case r.Method == http.MethodPost && strings.HasPrefix(path, "/api/vms/") && strings.HasSuffix(path, "/console"):
+		name := strings.TrimSuffix(strings.TrimPrefix(path, "/api/vms/"), "/console")
+		h.openConsole(w, r, name)
 	case r.Method == http.MethodPost && strings.HasPrefix(path, "/api/vms/") && strings.HasSuffix(path, "/stop"):
 		name := strings.TrimSuffix(strings.TrimPrefix(path, "/api/vms/"), "/stop")
 		h.stopVM(w, r, name)
@@ -105,6 +110,27 @@ func (h *VMHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.NotFound(w, r)
 	}
+}
+
+// consoleProvider lo implementan los proveedores que pueden abrir la
+// consola del hipervisor de una VM.
+type consoleProvider interface {
+	OpenConsole(name string) error
+}
+
+// openConsole maneja POST /api/vms/{vm}/console: abre la ventana de la VM en
+// el hipervisor (primer mecanismo de acceso, sin red).
+func (h *VMHandler) openConsole(w http.ResponseWriter, r *http.Request, name string) {
+	cp, ok := h.provider.(consoleProvider)
+	if !ok {
+		writeVMResponse(w, http.StatusNotImplemented, vmResponse{Success: false, Error: "este hipervisor no abre consolas desde la app"})
+		return
+	}
+	if err := cp.OpenConsole(name); err != nil {
+		writeVMResponse(w, http.StatusBadGateway, vmResponse{Success: false, Error: err.Error()})
+		return
+	}
+	writeVMResponse(w, http.StatusOK, vmResponse{Success: true, Message: "Consola de " + name + " abierta en el hipervisor."})
 }
 
 func (h *VMHandler) listTemplates(w http.ResponseWriter, r *http.Request) {

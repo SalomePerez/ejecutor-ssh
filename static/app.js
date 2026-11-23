@@ -1,6 +1,7 @@
 // ============================================================
 // Ejecutor SSH — logica de la interfaz
-// Modulos: VMs (lista y creacion; la Red vive en network.js), Comandos,
+// Modulos: VMs (lista y creacion; la configuracion de red vive en network.js y
+// el enrutamiento y diagnostico en netcmds.js), Comandos remotos (equipo),
 // Llaves SSH, Usuarios y Configuracion. Avisos con toast() y dialogos con
 // ask(), en lugar de alert/confirm/prompt del navegador.
 // ============================================================
@@ -551,6 +552,7 @@ const NET_MODES = { nat: 'NAT', route: 'Enrutada', isolated: 'Aislada', bridge: 
 let vnetCache = [];
 const VM_NAME_RE = /^[A-Za-z0-9-]+$/;
 let vmCache = [];
+let vmNetFilter = ''; // red elegida en el filtro del inventario ('' = todas)
 let vmTimer = null;
 let hostInfo = null; // memoria y CPU del hipervisor (GET /api/hypervisor)
 
@@ -565,15 +567,32 @@ function vmStateLabel(status) {
 // Comando para entrar a la VM desde este equipo. Con libvirt las VMs estan
 // en la red NAT del hipervisor y se salta por el (-J); con VirtualBox la IP
 // se alcanza directo (puente, solo anfitrion) desde este mismo equipo.
+// Comando SSH desde este equipo. En VirtualBox va a la IP de la tarjeta de
+// gestion (solo anfitrion): la IP de la NAT (10.0.2.x) no se alcanza desde
+// el anfitrion. Con libvirt, a la IP de la VM saltando por el hipervisor.
 function sshHint(vm) {
-  if (!vm.ip) return '';
   const c = configCache;
+  const vbox = c['vm.provider'] !== 'libvirt';
+  const ip = vbox ? vm.mgmtIp : vm.ip;
+  if (!ip) return '';
   const jump = c['vm.provider'] === 'libvirt' && c['vm.ssh.host'] ? ` -J ${c['vm.ssh.user'] || 'root'}@${c['vm.ssh.host']}${c['vm.ssh.port'] && c['vm.ssh.port'] !== '22' ? ':' + c['vm.ssh.port'] : ''}` : '';
   // Ruta absoluta (la manda el servidor) y entre comillas: la carpeta del
   // proyecto tiene espacios y el comando se pega desde cualquier carpeta.
   const keys = (c['keys.storePath'] || './keys').replace(/^\.\//, '');
   const key = vm.sshPrivateKeyPath || `${keys}/${vm.sshKeyName || vm.name + '-ssh'}`;
-  return `ssh -i "${key}"${jump} ${vm.sshUser || 'ubuntu'}@${vm.ip}`;
+  return `ssh -i "${key}"${jump} ${vm.sshUser || 'ubuntu'}@${ip}`;
+}
+
+// Los dos mecanismos de acceso, independientes: la consola del hipervisor
+// (sin red) y el SSH por la tarjeta de gestion. Pueden estar abiertos a la vez.
+function vmAccess(vm, hint) {
+  const vbox = configCache['vm.provider'] !== 'libvirt';
+  return `<div class="vm-access">
+    ${vbox ? `<div class="acc"><span class="lab"><b>Consola del hipervisor</b><small>ventana de VirtualBox · no usa la red de la VM</small></span>
+      <button type="button" class="btn-small" data-act="console">Abrir consola</button></div>` : ''}
+    <div class="acc"><span class="lab"><b>SSH${vbox ? ' · canal de gestión' : ''}</b><small>${hint ? 'desde este equipo, por la red' : vbox ? 'sin tarjeta de gestión: agregue una en «solo anfitrión» (Tarjetas) para entrar por SSH' : 'esperando la IP de la VM…'}</small></span>
+      ${hint ? `<span class="vm-ssh"><code>${esc(hint)}</code><button type="button" class="btn-small" data-act="copyssh">Copiar</button></span>` : ''}</div>
+  </div>`;
 }
 
 function renderVMs() {
@@ -585,9 +604,11 @@ function renderVMs() {
     ? `<span class="chip dim">${vmCache.length} ${vmCache.length === 1 ? 'VM' : 'VMs'}</span><span class="chip ok">${on} encendida${on === 1 ? '' : 's'}</span>`
     : '') + (hostInfo ? `<span class="chip ${over ? 'bad' : 'dim'}" title="Memoria de las VMs encendidas / memoria total del hipervisor">RAM ${(used / 1024).toFixed(1)} de ${(hostInfo.memoryMB / 1024).toFixed(1)} GB</span>` : '');
   $('#vm-mem-warning').hidden = !over;
-  if (over) $('#vm-mem-warning').innerHTML = `<span>⚠</span><span>Las VMs encendidas piden <b>${(used / 1024).toFixed(1)} GB</b> y el hipervisor tiene <b>${(hostInfo.memoryMB / 1024).toFixed(1)} GB</b>. Todo irá lento y el canal del hipervisor tardará mucho en responder. Apague las VMs que no esté usando.</span>`;
+  if (over) $('#vm-mem-warning').innerHTML = `<span>⚠</span><span>Las VMs encendidas piden <b>${(used / 1024).toFixed(1)} GB</b> y el hipervisor tiene <b>${(hostInfo.memoryMB / 1024).toFixed(1)} GB</b>. Todo irá lento y el canal interno tardará mucho en responder. Apague las VMs que no esté usando.</span>`;
   if (!vmCache.length) { list.innerHTML = '<p class="placeholder">No hay máquinas virtuales. Cree la primera con el formulario.</p>'; return; }
-  list.innerHTML = vmCache.map(vm => {
+  const shown = vmNetFilter ? vmCache.filter(v => (v.networks || []).some(n => n.network === vmNetFilter)) : vmCache;
+  if (!shown.length) { list.innerHTML = `<p class="placeholder">Ninguna VM está conectada a «${esc(vmNetFilter)}». <a href="#" data-net-filter="">Ver todas</a></p>`; return; }
+  list.innerHTML = (vmNetFilter ? `<div class="notice info"><span>ⓘ</span><span>${shown.length} ${shown.length === 1 ? 'VM conectada' : 'VMs conectadas'} a <b>${esc(vmNetFilter)}</b>. <a href="#" data-net-filter="">Ver todas</a></span></div>` : '') + shown.map(vm => {
     const [cls, label] = vmStateLabel(vm.status);
     const running = vm.status === 'running';
     const hint = running ? sshHint(vm) : '';
@@ -600,13 +621,14 @@ function renderVMs() {
         <span>${vm.diskGB ? vm.diskGB + ' GB' : '— GB'}</span>
         ${running ? `<span>IP <b class="mono">${vm.ip ? esc(vm.ip) : 'esperando…'}</b></span>` : ''}
       </div>
-      ${(vm.networks || []).length ? `<div class="item-meta">${vm.networks.map((n, i) => `<span class="chip ${i ? 'dim' : ''}" title="MAC ${esc(n.mac)}">${i ? '' : '★ '}${esc(n.network)}</span>`).join('')}</div>` : ''}
-      ${hint ? `<div class="vm-ssh"><code title="Desde este equipo, saltando por el hipervisor">${esc(hint)}</code><button type="button" class="btn-small" data-act="copyssh">Copiar</button></div>` : ''}
+      ${(vm.networks || []).length ? `<div class="item-meta">${vm.networks.map((n, i) => `<button type="button" class="chip chip-btn ${i ? 'dim' : ''}" data-net-filter="${esc(n.network)}" title="MAC ${esc(n.mac)} · clic: ver las VMs de esta red">${i ? '' : '★ '}${esc(n.network)}</button>`).join('')}</div>` : ''}
+      ${running ? vmAccess(vm, hint) : ''}
       <div class="item-actions">
         ${running
           ? '<button type="button" class="btn-small" data-act="stop">Apagar</button>'
           : '<button type="button" class="btn-small go" data-act="start">Encender</button>'}
-        <button type="button" class="btn-small" data-act="net"${running ? '' : ' disabled title="Encienda la VM: la red se lee por el canal del hipervisor"'}>Red</button>
+        <button type="button" class="btn-small" data-act="net"${running ? '' : ' disabled title="Encienda la VM: la red se lee por el canal interno"'}>Configurar red</button>
+        <button type="button" class="btn-small" data-act="cmds"${running ? '' : ' disabled title="Encienda la VM: la tabla de rutas y los comandos se leen dentro de ella"'}>Enrutamiento y diagnóstico</button>
         <button type="button" class="btn-small" data-act="disks" aria-expanded="false">Discos</button>
         <button type="button" class="btn-small" data-act="nics" aria-expanded="false">Tarjetas</button>
         <button type="button" class="btn-small" data-act="edit" aria-expanded="false">Editar</button>
@@ -644,6 +666,7 @@ async function listVMs({ quiet = false } = {}) {
   }
   vmCache = r.data.data;
   renderVMs();
+  if (vnetCache.length) renderVirtualNetworks(); // el estado de cada VM en sus redes
   scheduleVMRefresh();
 }
 
@@ -675,6 +698,7 @@ $('#vms-list').addEventListener('click', async e => {
 
   if (act === 'copyssh') return copyText(sshHint(vm), 'Comando SSH');
   if (act === 'net') return window.openNetwork(name);
+  if (act === 'cmds') return window.openNetCmds(name);
   if (act === 'nics') return toggleNics(card, vm, b);
   if (act === 'nic-del') return detachNic(vm, b.dataset.mac, b.dataset.net);
   if (act === 'nic-add') return attachNic(card, vm, b);
@@ -687,6 +711,7 @@ $('#vms-list').addEventListener('click', async e => {
   }
   if (act === 'disks') return toggleDisks(card, name, b);
   if (act === 'start') return vmAction(b, name, 'start', 'Encendiendo…', `VM «${name}» encendida.`);
+  if (act === 'console') return openConsole(b, name);
   if (act === 'stop') {
     const yes = await ask({
       title: 'Apagar VM',
@@ -698,6 +723,16 @@ $('#vms-list').addEventListener('click', async e => {
   }
   if (act === 'delete') return deleteVM(name);
 });
+
+// Abre la ventana de la VM en VirtualBox sin reiniciarla.
+async function openConsole(btn, name) {
+  busy(btn, true, 'Abriendo…');
+  const r = await api('/api/vms/' + encodeURIComponent(name) + '/console', { method: 'POST' });
+  busy(btn, false);
+  if (r.ok && r.data.success) {
+    toast('success', `Consola de «${name}» abierta en VirtualBox. Para cerrarla sin apagar la VM, escoja «Continuar ejecutando en segundo plano».`);
+  } else toast('error', errMsg(r, 'No se abrió la consola'));
+}
 
 async function vmAction(btn, name, action, label, okText) {
   busy(btn, true, label);
@@ -750,7 +785,7 @@ function toggleNics(card, vm, btn) {
     </div>`).join('') : '<small>La VM no tiene tarjetas de red.</small>'}</div>
     <div class="nic-add"><select aria-label="Red para la nueva tarjeta">${vnetCache.map(n => `<option value="${esc(n.name)}">${esc(n.name)} · ${esc(NET_MODES[n.mode] || n.mode)} · ${esc(n.subnet || '')}</option>`).join('')}</select>
       <button type="button" class="btn-small go" data-act="nic-add">+ Agregar tarjeta</button></div>
-    <small>${vm.status === 'running' ? '<b>Apague la VM</b> para agregar o quitar tarjetas: VirtualBox no lo permite con la VM encendida.' : 'La tarjeta aparecerá al encender la VM.'} Configure su IP en <b>Red</b>.</small>`;
+    <small>${vm.status === 'running' ? '<b>Apague la VM</b> para agregar o quitar tarjetas: VirtualBox no lo permite con la VM encendida.' : 'La tarjeta aparecerá al encender la VM.'} Configure su IP en <b>Configuración de red</b>.</small>`;
   panel.hidden = false;
   if (!vnetCache.length) loadVirtualNetworks().then(() => { if (!panel.hidden) { panel.hidden = true; toggleNics(card, vm, btn); } });
 }
@@ -770,7 +805,7 @@ async function detachNic(vm, mac, network) {
   const yes = await ask({
     title: 'Quitar tarjeta de red',
     html: `<p>Se quitará de <b>${esc(vm.name)}</b> la tarjeta <b>${esc(mac)}</b> (red «${esc(network)}»).</p>` +
-      (only ? '<p><b>Es su única tarjeta:</b> la VM quedará sin red. El canal del hipervisor (Guest Additions) sigue funcionando porque no usa la red.</p>' : ''),
+      (only ? '<p><b>Es su única tarjeta:</b> la VM quedará sin red. El canal interno (Guest Additions) sigue funcionando porque no usa la red.</p>' : ''),
     ok: 'Quitar', danger: true
   });
   if (!yes) return;
@@ -789,6 +824,7 @@ async function loadVirtualNetworks() {
   vnetCache = r.data.data || [];
   renderVirtualNetworks();
   fillNetworkSelects();
+  fillNetFilter();
 }
 window.loadVirtualNetworks = loadVirtualNetworks;
 
@@ -803,11 +839,39 @@ function renderVirtualNetworks() {
       <dt>Hipervisor (puerta de enlace)</dt><dd>${esc(n.hostIP || '—')}</dd>
       <dt>DHCP</dt><dd>${n.dhcpStart ? esc(n.dhcpStart + ' – ' + n.dhcpEnd) : 'no (IPs fijas)'}</dd>
       <dt>Bridge</dt><dd>${esc(n.bridge || '—')}</dd>
-      <dt>VMs conectadas</dt><dd>${n.vms.length ? n.vms.map(esc).join(', ') : 'ninguna'}</dd>
+      <dt>VMs conectadas</dt><dd>${n.vms.length ? '<span class="vnet-vms">' + n.vms.map(v => vnetVmChip(v)).join('') + '</span>' : 'ninguna'}</dd>
     </dl>
+    ${n.vms.length ? `<div><button type="button" class="btn-small" data-net-filter="${esc(n.name)}">Ver estas VMs en el inventario</button></div>` : ''}
     <div class="item-actions"><span class="sep"></span>${n.name === 'default' ? '<small>Red por defecto: no se elimina</small>' : `<button type="button" class="btn-small btn-danger" data-act="vnet-del"${n.vms.length ? ' disabled title="Quite primero las tarjetas de las VMs conectadas"' : ''}>Eliminar</button>`}</div>
   </div>`).join('');
 }
+
+// Una VM de la lista de una red: punto verde si esta encendida.
+function vnetVmChip(name) {
+  const vm = vmCache.find(v => v.name === name);
+  const on = vm && vm.status === 'running';
+  return `<span class="chip ${on ? 'ok' : 'dim'}" title="${on ? 'encendida' : 'apagada'}">${on ? '● ' : ''}${esc(name)}</span>`;
+}
+
+// Filtro del inventario por red.
+function fillNetFilter() {
+  const sel = $('#vm-net-filter');
+  sel.innerHTML = '<option value="">todas</option>' + vnetCache.map(n => `<option value="${esc(n.name)}">${esc(n.name)} (${n.vms.length})</option>`).join('');
+  sel.value = vnetCache.some(n => n.name === vmNetFilter) ? vmNetFilter : '';
+}
+function setNetFilter(name) {
+  vmNetFilter = name || '';
+  $('#vm-net-filter').value = vmNetFilter;
+  window.showVmTab('manage');
+  renderVMs();
+}
+$('#vm-net-filter').addEventListener('change', e => setNetFilter(e.target.value));
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-net-filter]');
+  if (!b) return;
+  e.preventDefault();
+  setNetFilter(b.dataset.netFilter);
+});
 
 function fillNetworkSelects() {
   const main = $('#vm-net-main');
@@ -1039,6 +1103,16 @@ $('#vm-create-form').addEventListener('submit', async e => {
   }
 });
 
+// ============== CRÉDITOS ==============
+// El pie de página abre Documentación → Créditos desde cualquier pestaña.
+function openCredits() {
+  showTab('vms');
+  window.showVmTab('docs');
+  window.showDoc('creditos');
+  $('#net-docs').scrollIntoView({ block: 'start', behavior: 'smooth' });
+}
+$('#open-credits').addEventListener('click', e => { e.preventDefault(); openCredits(); });
+
 // ============== INICIALIZACIÓN ==============
 window.listVMs = listVMs;
 window.ask = ask;
@@ -1047,11 +1121,16 @@ window.addEventListener('DOMContentLoaded', async () => {
   await loadConfig();
   loadTemplates();
   loadVirtualNetworks();
-  // Enlace directo: #vms/red/<vm> abre el panel de Red de esa VM.
-  const [start, sub, vmName] = decodeURIComponent((location.hash || '').slice(1) || store.get('tab', 'vms')).split('/');
+  // Enlace directo: #vms/red/<vm> abre la configuracion de red de esa VM y
+  // #vms/diagnostico/<vm>, su enrutamiento y diagnostico.
+  const [start, sub, vmName, part] = decodeURIComponent((location.hash || '').slice(1) || store.get('tab', 'vms')).split('/');
   showTab(start);
   if (start !== 'vms') listVMs({ quiet: true }); // la pastilla del hipervisor siempre se actualiza
   if (start === 'vms' && sub === 'red' && vmName) window.openNetwork(vmName);
+  else if (start === 'vms' && (sub === 'diagnostico' || sub === 'comandos') && vmName) window.openNetCmds(vmName, { reenvio: 'fwd', comandos: 'cmds', rutas: 'routes' }[part]);
   else if (start === 'vms' && sub === 'docs') window.showVmTab('docs');
+  else if (start === 'vms' && sub === 'creditos') openCredits();
+  else if (start === 'vms' && sub === 'redes') window.showVmTab('nets');
+  else if (start === 'vms' && sub === 'filtro' && vmName) setNetFilter(vmName); // #vms/filtro/interna:lan-a
   window.addEventListener('hashchange', () => showTab(location.hash.slice(1).split('/')[0]));
 });
