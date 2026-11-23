@@ -50,7 +50,14 @@ go version
 
 ### 2. Obtener el código
 
-Con Git (`git clone <url-del-repositorio>`) o descomprimiendo el `.zip` del proyecto. Después, abrir PowerShell **dentro de la carpeta `ejecutor-ssh`**: la app busca `templates/` y `static/` en la carpeta desde donde se ejecuta.
+Con Git:
+
+```powershell
+git clone https://github.com/SalomePerez/ejecutor-ssh.git
+cd ejecutor-ssh
+```
+
+o sin Git: en https://github.com/SalomePerez/ejecutor-ssh, botón **Code → Download ZIP**, descomprimir y abrir PowerShell **dentro de la carpeta descomprimida** (en el ZIP se llama `ejecutor-ssh-main`). La app busca `templates/` y `static/` en la carpeta desde donde se ejecuta.
 
 ### 3. Crear `config.properties`
 
@@ -59,7 +66,7 @@ Copy-Item config.properties.example config.properties
 notepad config.properties
 ```
 
-Lo mínimo que hay que llenar:
+El archivo copiado ya trae estas líneas; lo único que hay que escribir es la **contraseña** (`vbox.guest.password`) y el **token** (`security.apiToken`). Lo mínimo debe quedar así:
 
 ```properties
 # Puerto de la app (los dos valores deben tener el mismo número)
